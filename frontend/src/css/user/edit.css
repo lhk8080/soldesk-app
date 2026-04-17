@@ -1,0 +1,206 @@
+#edit-page {
+  width: 100%;
+  background: #f7f7f7;
+  padding: 40px 0 80px;
+  box-sizing: border-box;
+}
+
+.edit-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.edit-card {
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+  box-sizing: border-box;
+}
+
+.edit-title-box {
+  padding: 28px 32px 18px;
+  border-bottom: 1px solid #efefef;
+  text-align: center;
+}
+
+.edit-title {
+  margin: 0;
+  color: #111111;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.edit-content {
+  padding: 32px;
+}
+
+.edit-form {
+  max-width: 780px;
+}
+
+.edit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.edit-label {
+  width: 120px;
+  padding-top: 12px;
+  color: #2b2b2b;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.edit-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-input,
+.edit-readonly-box {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid #dcdcdc;
+  background: #ffffff;
+  color: #222222;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 44px;
+  box-sizing: border-box;
+}
+
+.edit-input:focus {
+  outline: none;
+  border-color: #4f6df5;
+}
+
+.edit-readonly-box {
+  background: #f8f8f8;
+  color: #666666;
+}
+
+.edit-error {
+  min-height: 18px;
+  margin-top: 6px;
+  color: #d9534f;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.edit-common-error {
+  min-height: 20px;
+  margin-top: 6px;
+  margin-bottom: 18px;
+  color: #d9534f;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.edit-common-error.is-static {
+  margin: 0;
+}
+
+.edit-button-row {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.edit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 110px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid #d7d7d7;
+  background: #ffffff;
+  color: #444444;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.edit-button:hover {
+  background: #4f6df5;
+  border-color: #4f6df5;
+  color: #ffffff;
+}
+
+.edit-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.edit-button.is-primary {
+  border-color: #4f6df5;
+  color: #4f6df5;
+}
+
+.edit-button.is-secondary {
+  border-color: #d7d7d7;
+  color: #444444;
+}
+
+@media (max-width: 768px) {
+  #edit-page {
+    padding: 24px 0 56px;
+  }
+
+  .edit-wrap {
+    padding: 0 16px;
+  }
+
+  .edit-title-box {
+    padding: 22px 20px 16px;
+  }
+
+  .edit-content {
+    padding: 22px 20px 30px;
+  }
+
+  .edit-title {
+    font-size: 24px;
+  }
+
+  .edit-row {
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .edit-label {
+    width: 100%;
+    padding-top: 0;
+    font-size: 15px;
+  }
+
+  .edit-input,
+  .edit-readonly-box {
+    min-height: 42px;
+    line-height: 40px;
+    font-size: 14px;
+  }
+
+  .edit-button-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .edit-button {
+    min-width: 100px;
+  }
+}

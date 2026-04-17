@@ -1,0 +1,200 @@
+name: Build & Publish
+
+# GitOps 파이프라인:
+#   change detect → (선택) test → docker build → ECR push
+#                                 → soldesk-k8s의 environments/<env>/values.yaml
+#                                   image tag cross-repo commit
+# ArgoCD가 soldesk-k8s를 watch해서 자동 sync.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 대상 환경 (environments/<env>/values.yaml)
+        required: true
+        default: prod
+        type: choice
+        options: [prod, staging]
+
+env:
+  AWS_REGION:      ap-northeast-2
+  ECR_REGISTRY:    ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com
+  K8S_REPO:        lhk8080/soldesk-k8s
+  K8S_ENV:         ${{ github.event.inputs.env || 'prod' }}
+  VALUES_PATH:     environments/${{ github.event.inputs.env || 'prod' }}/values.yaml
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # ── 변경 감지 ─────────────────────────────────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      ticketing-was: ${{ steps.filter.outputs.ticketing-was }}
+      worker-svc:    ${{ steps.filter.outputs.worker-svc }}
+      frontend:      ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ticketing-was: ['services/ticketing-was/**']
+            worker-svc:    ['services/worker-svc/**']
+            frontend:      ['frontend/**']
+
+  # ── 단위 테스트 (tests/ + requirements-dev.txt 있을 때만) ────────
+  test:
+    runs-on: ubuntu-latest
+    needs: changes
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: ticketing-was
+            path: services/ticketing-was
+            changedFlag: ticketing-was
+          - service: worker-svc
+            path: services/worker-svc
+            changedFlag: worker-svc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 변경/테스트 존재 여부 체크
+        id: check
+        run: |
+          CHANGED="${{ needs.changes.outputs[matrix.changedFlag] }}"
+          if [ "$CHANGED" != "true" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ ! -f "${{ matrix.path }}/requirements-dev.txt" ] || [ ! -d "${{ matrix.path }}/tests" ]; then
+            echo "tests 또는 requirements-dev.txt 없음 — skip"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Python 셋업
+        if: steps.check.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ${{ matrix.path }}/requirements-dev.txt
+
+      - name: 의존성 설치
+        if: steps.check.outputs.run == 'true'
+        working-directory: ${{ matrix.path }}
+        run: pip install -r requirements-dev.txt
+
+      - name: pytest
+        if: steps.check.outputs.run == 'true'
+        working-directory: ${{ matrix.path }}
+        run: pytest -v tests/
+
+  # ── 빌드 + ECR push ──────────────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    needs: [changes, test]
+    if: |
+      needs.changes.outputs.ticketing-was == 'true' ||
+      needs.changes.outputs.worker-svc    == 'true' ||
+      needs.changes.outputs.frontend      == 'true'
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: sha
+        run: echo "sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: AWS 자격증명 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: ECR 로그인
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: ticketing-was 빌드 & push
+        if: needs.changes.outputs.ticketing-was == 'true'
+        run: |
+          IMAGE=${{ env.ECR_REGISTRY }}/ticketing/ticketing-was
+          docker build -t $IMAGE:${{ steps.sha.outputs.sha }} -t $IMAGE:latest services/ticketing-was
+          docker push $IMAGE:${{ steps.sha.outputs.sha }}
+          docker push $IMAGE:latest
+
+      - name: worker-svc 빌드 & push
+        if: needs.changes.outputs.worker-svc == 'true'
+        run: |
+          IMAGE=${{ env.ECR_REGISTRY }}/ticketing/worker-svc
+          docker build -t $IMAGE:${{ steps.sha.outputs.sha }} -t $IMAGE:latest services/worker-svc
+          docker push $IMAGE:${{ steps.sha.outputs.sha }}
+          docker push $IMAGE:latest
+
+      # frontend는 S3/CloudFront 오리진 서빙. ECR 빌드는 원본 워크플로 호환용.
+      # 실제 배포 경로는 frontend deployment가 아니라 S3 sync — 추후 S3 sync 스텝으로
+      # 교체 권장.
+      - name: frontend 빌드 & push
+        if: needs.changes.outputs.frontend == 'true'
+        run: |
+          IMAGE=${{ env.ECR_REGISTRY }}/ticketing/frontend
+          docker build -t $IMAGE:${{ steps.sha.outputs.sha }} -t $IMAGE:latest frontend
+          docker push $IMAGE:${{ steps.sha.outputs.sha }}
+          docker push $IMAGE:latest
+
+  # ── soldesk-k8s 레포에 image tag commit (was/worker만, frontend는 helm 차트 X) ──
+  bump-image-tag:
+    runs-on: ubuntu-latest
+    needs: [changes, build]
+    if: |
+      needs.changes.outputs.ticketing-was == 'true' ||
+      needs.changes.outputs.worker-svc    == 'true'
+    steps:
+      - name: soldesk-k8s checkout (PAT)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.K8S_REPO }}
+          token: ${{ secrets.K8S_REPO_TOKEN }}
+          ref: main
+          path: k8s-repo
+
+      - name: yq 설치
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: was tag 갱신
+        if: needs.changes.outputs.ticketing-was == 'true'
+        working-directory: k8s-repo
+        env:
+          NEW_TAG: ${{ needs.build.outputs.sha }}
+        run: |
+          yq -i '.images.was.tag = strenv(NEW_TAG)' ${{ env.VALUES_PATH }}
+
+      - name: worker tag 갱신
+        if: needs.changes.outputs.worker-svc == 'true'
+        working-directory: k8s-repo
+        env:
+          NEW_TAG: ${{ needs.build.outputs.sha }}
+        run: |
+          yq -i '.images.worker.tag = strenv(NEW_TAG)' ${{ env.VALUES_PATH }}
+
+      - name: commit & push
+        working-directory: k8s-repo
+        run: |
+          if git diff --quiet ${{ env.VALUES_PATH }}; then
+            echo "tag 변경 없음 — commit 생략"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ${{ env.VALUES_PATH }}
+          git commit -m "ci(${{ env.K8S_ENV }}): bump image tag → ${{ needs.build.outputs.sha }}"
+          git push origin main

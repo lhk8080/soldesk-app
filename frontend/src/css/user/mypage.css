@@ -1,0 +1,430 @@
+#mypage-page {
+  width: 100%;
+  background: #f7f7f7;
+  padding: 40px 0 80px;
+  box-sizing: border-box;
+}
+
+.mypage-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.mypage-card {
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+  box-sizing: border-box;
+}
+
+.mypage-title-box {
+  padding: 28px 32px 18px;
+  border-bottom: 1px solid #efefef;
+  text-align: center;
+}
+
+.mypage-title {
+  margin: 0;
+  color: #111111;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.mypage-content {
+  padding: 28px 32px 40px;
+}
+
+.mypage-profile-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 28px 0;
+  border-bottom: 1px solid #ececec;
+}
+
+.mypage-profile-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.mypage-profile-name {
+  margin: 0 0 18px;
+  color: #2b2b2b;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.mypage-profile-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.mypage-profile-table th,
+.mypage-profile-table td {
+  padding: 14px 16px;
+  border: 1px solid #e9e9e9;
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: left;
+  word-break: break-all;
+}
+
+.mypage-profile-table th {
+  width: 160px;
+  background: #f8f8f8;
+  color: #555555;
+  font-weight: 700;
+}
+
+.mypage-profile-table td {
+  background: #ffffff;
+  color: #222222;
+  font-weight: 500;
+}
+
+.mypage-profile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 170px;
+  flex: 0 0 170px;
+  align-self: center;
+}
+
+.mypage-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #4f6df5;
+  background: #ffffff;
+  color: #4f6df5;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.mypage-action-button:hover {
+  background: #4f6df5;
+  border-color: #4f6df5;
+  color: #ffffff;
+}
+
+.mypage-section {
+  padding-top: 36px;
+}
+
+.mypage-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.mypage-section-title {
+  margin: 0;
+  color: #2b2b2b;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.mypage-booking-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e5e5e5;
+  background: #ffffff;
+}
+
+.mypage-booking-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.mypage-booking-table thead th {
+  background: #4d9a50;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 14px 12px;
+  text-align: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.mypage-booking-table thead th:last-child {
+  border-right: none;
+}
+
+.mypage-booking-table tbody td {
+  padding: 16px 12px;
+  border-top: 1px solid #ededed;
+  color: #333333;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  vertical-align: middle;
+  background: #ffffff;
+}
+
+.mypage-booking-table tbody tr:hover td {
+  background: #fafcff;
+}
+
+.mypage-booking-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 82px;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #4d9a50;
+  color: #4d9a50;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.mypage-booking-status.is-cancel {
+  border-color: #d9534f;
+  color: #d9534f;
+}
+
+.mypage-booking-status.is-wait {
+  border-color: #f0ad4e;
+  color: #f0ad4e;
+}
+
+.mypage-section-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #4f6df5;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.mypage-section-link:hover {
+  color: #3b5de7;
+  text-decoration: underline;
+}
+
+.mypage-empty-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  border: 1px solid #e5e5e5;
+  background: #ffffff;
+  color: #666666;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ── Recent bookings preview ── */
+
+.mypage-recent-list {
+  border: 1px solid #e5e5e5;
+  background: #ffffff;
+}
+
+.mypage-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.12s ease;
+}
+
+.mypage-recent-item:last-child {
+  border-bottom: none;
+}
+
+.mypage-recent-item:hover {
+  background: #fafbff;
+}
+
+.mypage-recent-date {
+  flex: 0 0 100px;
+  color: #555555;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mypage-recent-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.mypage-recent-badge-concert {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.mypage-recent-badge-movie {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mypage-recent-title {
+  flex: 1;
+  min-width: 0;
+  color: #222222;
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mypage-recent-region {
+  flex: 0 0 80px;
+  color: #666666;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+@media (max-width: 1024px) {
+  .mypage-title {
+    font-size: 26px;
+  }
+
+  .mypage-profile-box {
+    flex-direction: column;
+  }
+
+  .mypage-profile-actions {
+    width: 100%;
+    flex: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .mypage-action-button {
+    flex: 1 1 calc(33.333% - 8px);
+    min-width: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  #mypage-page {
+    padding: 24px 0 56px;
+  }
+
+  .mypage-wrap {
+    padding: 0 16px;
+  }
+
+  .mypage-title-box {
+    padding: 22px 20px 16px;
+  }
+
+  .mypage-content {
+    padding: 22px 20px 30px;
+  }
+
+  .mypage-title {
+    font-size: 24px;
+  }
+
+  .mypage-profile-name {
+    font-size: 24px;
+    margin-bottom: 14px;
+  }
+
+  .mypage-profile-table th,
+  .mypage-profile-table td {
+    padding: 12px 12px;
+    font-size: 14px;
+  }
+
+  .mypage-profile-table th {
+    width: 110px;
+  }
+
+  .mypage-section-title {
+    font-size: 20px;
+  }
+
+  .mypage-recent-item {
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .mypage-recent-date {
+    flex: 0 0 auto;
+    font-size: 13px;
+  }
+
+  .mypage-recent-region {
+    flex: 0 0 auto;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 560px) {
+  .mypage-profile-actions {
+    flex-direction: column;
+  }
+
+  .mypage-action-button {
+    width: 100%;
+    flex: none;
+  }
+
+  .mypage-title {
+    font-size: 22px;
+  }
+
+  .mypage-profile-name {
+    font-size: 22px;
+  }
+
+  .mypage-section-title {
+    font-size: 18px;
+  }
+
+  .mypage-empty-box {
+    min-height: 140px;
+    font-size: 14px;
+  }
+
+  .mypage-recent-item {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 14px;
+  }
+
+  .mypage-recent-title {
+    flex: 1 1 100%;
+    order: 3;
+    font-size: 14px;
+  }
+}

@@ -1,0 +1,307 @@
+/* Concert booking modal (seat selection) */
+
+/* These styles were previously mixed into theaters_detail.css because the concert modal reused it.
+   Keep them isolated here so movie/theater flows are unaffected. */
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-seat-grid {
+  border: 1px solid #ededed;
+  border-radius: 10px;
+  padding: 14px;
+  background: #fafafa;
+}
+
+.concert-seat-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.concert-seat-topline {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.concert-seat-rowline {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.concert-seat-rowswrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.concert-seat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  font-size: 13px;
+  color: #444;
+}
+
+.concert-seat-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.concert-seat-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid #c9c9c9;
+  background: #fff;
+}
+
+.concert-seat-dot.is-selected {
+  background: #1f66ff;
+  border-color: #1f66ff;
+}
+
+.concert-seat-dot.is-disabled {
+  background: #d9d9d9;
+  border-color: #d9d9d9;
+}
+
+.concert-seat-dot.is-hold {
+  background: #ff8a00;
+  border-color: #ff8a00;
+}
+
+.concert-seat-row-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+}
+
+.concert-row-next-range {
+  font-size: 12px;
+  font-weight: 800;
+  color: #111;
+  background: #fff;
+  border: 1px solid #d7d7d7;
+  border-radius: 999px;
+  padding: 6px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.concert-row-more-hint {
+  font-size: 12px;
+  font-weight: 900;
+  color: #1f66ff;
+  padding: 0 4px;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.concert-row-more-hint[hidden] {
+  display: none;
+}
+
+.concert-seat-row-btn {
+  height: 30px;
+  width: 52px; /* 1열/200열 모두 동일 간격 */
+  padding: 0;
+  border: 1px solid #d7d7d7;
+  background: #fff;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #111;
+  text-align: center;
+}
+
+.concert-seat-row-btn.is-active {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+  font-weight: 700;
+}
+
+.concert-seat-page {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.concert-seat-page-info {
+  font-size: 13px;
+  color: #555;
+  white-space: nowrap;
+}
+
+/* concert-seat-jump removed (single-screen layout) */
+
+/* Paging controls: styles live here (not theaters_main.css) so concert-only visitors still get layout under load spikes. */
+.concert-seat-nav-btn {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #c8c8c8;
+  background: #fff;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  color: #222;
+  box-sizing: border-box;
+}
+
+.concert-seat-nav-btn:hover:not(:disabled) {
+  border-color: #111;
+}
+
+.concert-seat-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Wider, less "compressed" look for concert bookings */
+.theaters-detail-overlay.is-large-venue .theaters-detail-shell {
+  width: min(1560px, 100%);
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-modal {
+  width: min(1480px, 100%);
+  height: min(860px, 96vh);
+}
+
+/* keep left steps (01/02/03) visible */
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-head {
+  height: 44px;
+  padding: 0 52px;
+  background: #fff;
+  color: #111;
+  border-bottom: 1px solid #ededed;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-close {
+  right: 14px;
+  font-size: 34px;
+  color: #111;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-body {
+  padding: 14px 18px 14px;
+  overflow: auto; /* scroll only if truly needed */
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-summary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center; /* UI 기준으로 항상 가운데 */
+  position: relative;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-summary-main {
+  min-width: 0;
+  width: 100%;
+  text-align: center;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-summary-side {
+  position: absolute;
+  right: 0;
+  top: 14px;
+  width: min(360px, 34%);
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-summary-side .theaters-detail-queue {
+  margin-top: 0;
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 7px 10px;
+  pointer-events: auto;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-movie {
+  font-size: 20px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-place,
+.theaters-detail-overlay.is-large-venue .theaters-detail-date {
+  font-size: 13px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-seat-count {
+  margin-top: 12px;
+  font-size: 15px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-seat-count strong {
+  font-size: 34px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-seat-count span {
+  font-size: 18px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-seat-grid {
+  margin-top: 10px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-seat-row-seats {
+  gap: 4px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-seat {
+  height: 22px;
+  font-size: 9px;
+  border-width: 1px;
+}
+
+.theaters-detail-overlay.is-large-venue .concert-seat-row-btn {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  min-width: 46px; /* 200열 같은 3자리도 흔들리지 않게 */
+}
+
+/* 아래 요약(선택좌석/인원/금액) 영역을 위로 끌어올려 한 화면에 맞춤 */
+.theaters-detail-overlay.is-large-venue .theaters-detail-selected-wrap,
+.theaters-detail-overlay.is-large-venue .theaters-detail-price-wrap {
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-selected-value {
+  font-size: 12px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-price-wrap strong {
+  font-size: 18px;
+}
+
+.theaters-detail-overlay.is-large-venue .theaters-detail-actions {
+  padding: 0 18px 18px;
+}
+

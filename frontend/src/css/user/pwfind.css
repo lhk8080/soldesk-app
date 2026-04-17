@@ -1,0 +1,93 @@
+.pwfind-modal {
+  max-width: 520px;
+}
+
+.pwfind-header {
+  margin-bottom: 28px;
+}
+
+.pwfind-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.pwfind-form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.pwfind-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pwfind-field-error {
+  min-height: 22px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #ff3b30;
+}
+
+.pwfind-common-error {
+  min-height: 22px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #ff3b30;
+}
+
+.pwfind-button-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.pwfind-submit-button,
+.pwfind-cancel-button {
+  width: 100%;
+  height: 56px;
+  border: 1px solid #2f66f3;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #2f66f3;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pwfind-submit-button:hover,
+.pwfind-cancel-button:hover {
+  background: linear-gradient(90deg, #2f66f3 0%, #6f8ef6 100%);
+  color: #ffffff;
+  border-color: #2f66f3;
+}
+
+.pwfind-submit-button:disabled,
+.pwfind-cancel-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.pwfind-found-user-box {
+  margin-bottom: 22px;
+  padding: 18px 20px;
+  border: 1px solid #d8e2f5;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+.pwfind-found-user-date {
+  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #2f66f3;
+}
+
+.pwfind-found-user-text {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #5e7094;
+}

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sol ticketing</title>
+    <link rel="icon" href="data:," />
+
+    <!--
+      S3 정적: /api/* 는 페이지 오리진과 다름. api-origin.js(또는 meta)에 ALB 또는 API Gateway 베이스 URL만 넣는 패턴 유지.
+      Cognito 연동 시에도 동일( GW URL을 오리진으로 두고 GW CORS에서 S3 웹 오리진 허용 ).
+      CloudFront로 API까지 한 덩어리로 묶는 방식은 경로/CORS/쿠키 이슈가 잘 나서, 필요 시 아키텍처와 별도 검토 권장.
+    -->
+    <!--
+      API 오리진 우선순위:
+      - window.__TICKETING_API_ORIGIN__ (/api-origin.js — apply 후 sync 가 S3에 씀)
+      - localStorage["ticketing-api-origin"] (레거시)
+      - meta[name="ticketing-api-origin"]
+      - APP_CONFIG.apiOrigin
+    -->
+    <meta name="ticketing-api-origin" content="" />
+
+    <script src="/api-origin.js"></script>
+
+    <script defer src="/js/common/cognito-auth.js"></script>
+    <script defer src="/js/common/read-api.js"></script>
+    <script defer src="/js/common/write-api.js"></script>
+    <script defer src="/js/common/app-config.js"></script>
+    <script defer src="/js/common/image-resolver.js"></script>
+    <script defer src="/js/main/head.js"></script>
+    <script defer src="/js/user/login.js"></script>
+    <script defer src="/js/main/router.js"></script>
+  </head>
+
+  <body>
+    <div id="site-header"></div>
+    <div id="main-body"></div>
+  </body>
+</html>

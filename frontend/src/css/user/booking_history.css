@@ -1,0 +1,435 @@
+#booking-history-page {
+  width: 100%;
+  background: #f7f7f7;
+  padding: 40px 0 80px;
+  box-sizing: border-box;
+}
+
+.bh-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.bh-card {
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+  box-sizing: border-box;
+}
+
+.bh-title-box {
+  padding: 28px 32px 18px;
+  border-bottom: 1px solid #efefef;
+  text-align: center;
+}
+
+.bh-title {
+  margin: 0;
+  color: #111111;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.bh-content {
+  padding: 28px 32px 40px;
+}
+
+.bh-back-row {
+  margin-bottom: 24px;
+}
+
+.bh-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.bh-back-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+/* ── Booking item ── */
+
+.bh-item {
+  border: 1px solid #e5e5e5;
+  background: #ffffff;
+  margin-bottom: 8px;
+  transition: box-shadow 0.15s ease;
+}
+
+.bh-item:last-child {
+  margin-bottom: 0;
+}
+
+.bh-item:not(.is-cancelled):not(.is-expired):hover {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.bh-item.is-open {
+  border-color: #c7d2fe;
+}
+
+.bh-item-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease;
+}
+
+.bh-item:not(.is-cancelled):not(.is-expired) .bh-item-summary:hover {
+  background: #fafbff;
+}
+
+.bh-item-date {
+  flex: 0 0 100px;
+  color: #555555;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.bh-item-title {
+  flex: 1;
+  min-width: 0;
+  color: #222222;
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bh-item-region {
+  flex: 0 0 80px;
+  color: #666666;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.bh-item-hint {
+  flex: 1;
+  color: #b0b0b0;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bh-item.is-open .bh-item-hint {
+  visibility: hidden;
+}
+
+.bh-item-count {
+  flex: 0 0 40px;
+  color: #4d9a50;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.bh-item-title .bh-item-type {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.bh-item-type-concert {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.bh-item-type-movie {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* ── Inactive item shared (cancelled / expired) ── */
+
+.bh-item.is-cancelled,
+.bh-item.is-expired {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.bh-item.is-cancelled .bh-item-summary,
+.bh-item.is-expired .bh-item-summary {
+  cursor: pointer;
+}
+
+.bh-item.is-cancelled .bh-item-summary:hover,
+.bh-item.is-expired .bh-item-summary:hover {
+  background: #f3f4f6;
+}
+
+.bh-item.is-cancelled .bh-item-date,
+.bh-item.is-cancelled .bh-item-title,
+.bh-item.is-cancelled .bh-item-region,
+.bh-item.is-cancelled .bh-item-count {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.bh-item.is-cancelled .bh-item-title .bh-item-type {
+  text-decoration: none;
+}
+
+.bh-item.is-expired .bh-item-date,
+.bh-item.is-expired .bh-item-title,
+.bh-item.is-expired .bh-item-region,
+.bh-item.is-expired .bh-item-count {
+  color: #9ca3af;
+}
+
+.bh-item.is-expired .bh-detail-table th {
+  color: #9ca3af;
+}
+
+.bh-item.is-expired .bh-detail-table td {
+  color: #9ca3af;
+}
+
+.bh-item-refunded {
+  flex: 0 0 auto;
+  color: #d9534f;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Cancelled label should be gray (keep refund button styles intact) */
+.bh-item.is-cancelled .bh-item-refunded {
+  color: #9ca3af;
+}
+
+.bh-item-completed {
+  flex: 0 0 auto;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Refund button ── */
+
+.bh-refund-btn {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border: 1px solid #d9534f;
+  background: #ffffff;
+  color: #d9534f;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.bh-refund-btn:hover {
+  background: #d9534f;
+  color: #ffffff;
+}
+
+/* ── Detail (accordion) ── */
+
+.bh-item-detail {
+  border-top: 1px solid #f0f0f0;
+  padding: 0 20px 20px;
+  background: #fafbfc;
+}
+
+.bh-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.bh-detail-table th,
+.bh-detail-table td {
+  padding: 10px 14px;
+  border: 1px solid #e9e9e9;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: left;
+  word-break: break-all;
+}
+
+.bh-detail-table th {
+  width: 120px;
+  background: #f3f4f6;
+  color: #555555;
+  font-weight: 700;
+}
+
+.bh-detail-table td {
+  background: #ffffff;
+  color: #222222;
+  font-weight: 500;
+}
+
+.bh-item.is-cancelled .bh-detail-table th {
+  color: #9ca3af;
+}
+
+.bh-item.is-cancelled .bh-detail-table td {
+  color: #9ca3af;
+}
+
+/* ── Pagination ── */
+
+.bh-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 28px;
+  padding: 8px 0;
+}
+
+.bh-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.bh-page-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.bh-page-btn.is-active {
+  background: #4f6df5;
+  border-color: #4f6df5;
+  color: #ffffff;
+}
+
+.bh-page-btn.is-active:hover {
+  background: #3b5de7;
+  border-color: #3b5de7;
+}
+
+/* ── Empty / loading ── */
+
+.bh-empty,
+.bh-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  border: 1px solid #e5e5e5;
+  background: #ffffff;
+  color: #666666;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 768px) {
+  #booking-history-page {
+    padding: 24px 0 56px;
+  }
+
+  .bh-wrap {
+    padding: 0 16px;
+  }
+
+  .bh-title-box {
+    padding: 22px 20px 16px;
+  }
+
+  .bh-content {
+    padding: 22px 20px 30px;
+  }
+
+  .bh-title {
+    font-size: 24px;
+  }
+
+  .bh-item-summary {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 14px 16px;
+  }
+
+  .bh-item-date {
+    flex: 0 0 auto;
+    font-size: 13px;
+  }
+
+  .bh-item-title {
+    flex: 1 1 100%;
+    order: 5;
+    font-size: 14px;
+  }
+
+  .bh-item-region {
+    flex: 0 0 auto;
+    font-size: 13px;
+  }
+
+  .bh-item-count {
+    flex: 0 0 auto;
+    font-size: 13px;
+  }
+
+  .bh-detail-table th {
+    width: 90px;
+    font-size: 13px;
+  }
+
+  .bh-detail-table td {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 560px) {
+  .bh-title {
+    font-size: 22px;
+  }
+
+  .bh-page-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+
+  .bh-item-summary {
+    gap: 6px;
+    padding: 12px 14px;
+  }
+
+  .bh-refund-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+}

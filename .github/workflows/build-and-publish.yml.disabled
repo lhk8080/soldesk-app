@@ -1,10 +1,13 @@
 name: Build & Publish
 
-# GitOps 파이프라인:
-#   change detect → (선택) test → docker build → ECR push
-#                                 → soldesk-k8s의 environments/<env>/values.yaml
-#                                   image tag cross-repo commit
-# ArgoCD가 soldesk-k8s를 watch해서 자동 sync.
+# [DISABLED] 멀티 계정 개발 단계에는 각 팀원이 로컬 scripts/seed.sh 로 배포.
+# GitHub Actions 는 팀 공용 단일 AWS 계정으로 전환할 때 파일명에서 .disabled
+# 를 제거하여 재활성화. 그 시점에 필요한 GitHub Secrets:
+#   AWS_ACCOUNT_ID, AWS_ROLE_ARN, FRONTEND_BUCKET, CF_DISTRIBUTION_ID,
+#   (옵션1 GitOps 복구 시) K8S_REPO_TOKEN
+#
+# 파이프라인:
+#   change detect → (선택) test → docker build → ECR push (SHA 태그만)
 
 on:
   push:
@@ -125,17 +128,15 @@ jobs:
         if: needs.changes.outputs.ticketing-was == 'true'
         run: |
           IMAGE=${{ env.ECR_REGISTRY }}/ticketing/ticketing-was
-          docker build -t $IMAGE:${{ steps.sha.outputs.sha }} -t $IMAGE:latest services/ticketing-was
+          docker build -t $IMAGE:${{ steps.sha.outputs.sha }} services/ticketing-was
           docker push $IMAGE:${{ steps.sha.outputs.sha }}
-          docker push $IMAGE:latest
 
       - name: worker-svc 빌드 & push
         if: needs.changes.outputs.worker-svc == 'true'
         run: |
           IMAGE=${{ env.ECR_REGISTRY }}/ticketing/worker-svc
-          docker build -t $IMAGE:${{ steps.sha.outputs.sha }} -t $IMAGE:latest services/worker-svc
+          docker build -t $IMAGE:${{ steps.sha.outputs.sha }} services/worker-svc
           docker push $IMAGE:${{ steps.sha.outputs.sha }}
-          docker push $IMAGE:latest
 
   # ── frontend: S3 sync + CloudFront invalidation ─────────────────
   deploy-frontend:
@@ -163,52 +164,7 @@ jobs:
             --distribution-id ${{ secrets.CF_DISTRIBUTION_ID }} \
             --paths "/*"
 
-  # ── soldesk-k8s 레포에 image tag commit (was/worker만, frontend는 helm 차트 X) ──
-  bump-image-tag:
-    runs-on: ubuntu-latest
-    needs: [changes, build]
-    if: |
-      needs.changes.outputs.ticketing-was == 'true' ||
-      needs.changes.outputs.worker-svc    == 'true'
-    steps:
-      - name: soldesk-k8s checkout (PAT)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.K8S_REPO }}
-          token: ${{ secrets.K8S_REPO_TOKEN }}
-          ref: main
-          path: k8s-repo
-
-      - name: yq 설치
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-
-      - name: was tag 갱신
-        if: needs.changes.outputs.ticketing-was == 'true'
-        working-directory: k8s-repo
-        env:
-          NEW_TAG: ${{ needs.build.outputs.sha }}
-        run: |
-          yq -i '.images.was.tag = strenv(NEW_TAG)' ${{ env.VALUES_PATH }}
-
-      - name: worker tag 갱신
-        if: needs.changes.outputs.worker-svc == 'true'
-        working-directory: k8s-repo
-        env:
-          NEW_TAG: ${{ needs.build.outputs.sha }}
-        run: |
-          yq -i '.images.worker.tag = strenv(NEW_TAG)' ${{ env.VALUES_PATH }}
-
-      - name: commit & push
-        working-directory: k8s-repo
-        run: |
-          if git diff --quiet ${{ env.VALUES_PATH }}; then
-            echo "tag 변경 없음 — commit 생략"
-            exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ${{ env.VALUES_PATH }}
-          git commit -m "ci(${{ env.K8S_ENV }}): bump image tag → ${{ needs.build.outputs.sha }}"
-          git push origin main
+  # NOTE: 이전엔 여기서 soldesk-k8s/environments/<env>/values.yaml 의 image tag 를
+  # bump commit 했지만, 멀티 계정 재현을 위해 repo 에서 계정/태그 정보를 제거했다.
+  # 이미지 태그 갱신은 각 팀원이 로컬에서 scripts/seed.sh 로 수행 (ArgoCD
+  # Application 의 helm parameter 를 kubectl patch).

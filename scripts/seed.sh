@@ -43,8 +43,14 @@ echo "  API     : $API_ENDPOINT"
 # "Table ticketing.* doesn't exist" 방지. 이미 있으면 --force 로 무시.
 echo "==> [0/4] DB 스키마 초기화"
 DB_WRITER_HOST="$(terraform -chdir="$INFRA_TF" output -raw rds_writer_endpoint 2>/dev/null || true)"
+# DB 비번은 modules/rds 가 random_password로 생성하고 SSM(/ticketing/prod/db/password)에 저장됨.
+# (이전: tfvars의 db_password 라인을 grep — 평문 제거로 폐기)
 if [ -z "${DB_PASSWORD:-}" ]; then
-  DB_PASSWORD="$(grep '^db_password' "$INFRA_TF/terraform.tfvars" 2>/dev/null | sed 's/.*= *"//;s/".*//' || true)"
+  DB_PASSWORD="$(aws ssm get-parameter \
+    --name "/ticketing/${ENV:-prod}/db/password" \
+    --with-decryption \
+    --region "$REGION" \
+    --query 'Parameter.Value' --output text 2>/dev/null || true)"
 fi
 
 if [ -z "$DB_WRITER_HOST" ] || [ -z "$DB_PASSWORD" ]; then

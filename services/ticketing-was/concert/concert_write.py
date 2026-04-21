@@ -9,7 +9,7 @@ import uuid
 import secrets
 import string
 import pymysql
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from config import BOOKING_QUEUE_COUNTER_TTL_SEC, DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER
@@ -641,9 +641,9 @@ def commit_concert_booking(payload: dict):
 
 
 @router.post("/api/write/concerts/{show_id}/waiting-room/enter")
-def enter_waiting_room(show_id: int, payload: dict):
-    data = payload if isinstance(payload, dict) else {}
-    user_id = _to_int(data.get("user_id"))
+def enter_waiting_room(show_id: int, request: Request):
+    # 인증된 user_id 는 미들웨어가 request.state 에 세팅 (payload 값은 위조 가능하므로 신뢰 금지).
+    user_id = _to_int(getattr(request.state, "user_id", 0))
     if user_id <= 0 or int(show_id) <= 0:
         return JSONResponse(status_code=400, content={"ok": False, "code": "BAD_REQUEST"})
     return wr_enter(kind="concert", entity_id=int(show_id), user_id=user_id)

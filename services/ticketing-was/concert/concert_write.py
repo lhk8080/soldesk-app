@@ -458,9 +458,10 @@ def _seat_shard_id(row: int, col: int) -> int:
 
 
 @router.post("/api/write/concerts/booking/commit")
-def commit_concert_booking(payload: dict):
+def commit_concert_booking(payload: dict, request: Request):
     data = payload if isinstance(payload, dict) else {}
-    user_id = _to_int(data.get("user_id"))
+    # user_id 는 인증 미들웨어 신뢰 (payload 값 무시 — 위조 방지).
+    user_id = _to_int(getattr(request.state, "user_id", 0))
     show_id = _to_int(data.get("show_id"))
     seats = data.get("seats") or []
     skip_hold = bool(data.get("skip_hold") is True)

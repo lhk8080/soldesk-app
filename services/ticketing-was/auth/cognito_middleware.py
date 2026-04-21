@@ -48,6 +48,12 @@ PUBLIC_PATH_PREFIXES = (
     "/api/write/booking/",
 )
 
+# show_id 가 경로 중간에 들어가는 공개 엔드포인트 — 정규식 매칭.
+import re as _re
+PUBLIC_PATH_PATTERNS = (
+    _re.compile(r"^/api/write/concerts/\d+/waiting-room/metrics/?$"),
+)
+
 # 정확히 일치해야 하는 공개 경로
 PUBLIC_EXACT_PATHS = {
     "/",
@@ -65,6 +71,9 @@ def _is_public_path(path: str) -> bool:
         return True
     for prefix in PUBLIC_PATH_PREFIXES:
         if prefix != "/" and path.startswith(prefix):
+            return True
+    for pat in PUBLIC_PATH_PATTERNS:
+        if pat.match(path):
             return True
     return False
 

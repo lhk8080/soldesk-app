@@ -31,8 +31,11 @@ PUBLIC_PATH_PREFIXES = (
     "/metrics",
     # 공개 조회 API (영화/극장/콘서트 목록 등)
     "/api/read/movies",
+    "/api/read/movie/",
     "/api/read/theaters",
+    "/api/read/theater/",
     "/api/read/concerts",
+    "/api/read/concert/",
     # 캐시 리빌드 (admin)
     "/api/write/admin/",
     "/api/read/movies/cache/",

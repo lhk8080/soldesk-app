@@ -42,6 +42,7 @@ PUBLIC_PATH_PREFIXES = (
     # Waiting Room 상태 조회 (인증 전 대기열 진입 허용)
     "/api/read/waiting-room/",
     "/api/write/waiting-room/",
+    "/api/write/concerts/waiting-room/status/",
     # 예매 상태 폴링 (booking_ref 기반, 인증은 예매 시점에 이미 완료)
     "/api/read/booking/",
     "/api/write/booking/",

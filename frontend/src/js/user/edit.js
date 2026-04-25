@@ -6,17 +6,6 @@
 
   let isEditSubmitting = false;
 
-  function formatPhone(phone) {
-    const raw = String(phone || '').replace(/[^0-9]/g, '');
-    if (raw.length === 11) {
-      return `${raw.slice(0, 3)}-${raw.slice(3, 7)}-${raw.slice(7)}`;
-    }
-    if (raw.length === 10) {
-      return `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6)}`;
-    }
-    return phone || '-';
-  }
-
   function formatJoinDate(value) {
     if (!value) return '-';
     const date = new Date(value);
@@ -28,10 +17,6 @@
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const dd = String(date.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
-  }
-
-  function normalizePhone(phone) {
-    return String(phone || '').replace(/[^0-9]/g, '').slice(0, 11);
   }
 
   function renderEditLayout(user) {
@@ -54,10 +39,9 @@
                 </div>
 
                 <div class="edit-row">
-                  <label class="edit-label" for="edit-phone">핸드폰번호</label>
+                  <label class="edit-label">이메일</label>
                   <div class="edit-field">
-                    <input type="text" id="edit-phone" class="edit-input" inputmode="numeric" maxlength="13" value="${formatPhone(user.phone || '')}" />
-                    <div id="edit-phone-error" class="edit-error"></div>
+                    <div class="edit-readonly-box">${user.email || '-'}</div>
                   </div>
                 </div>
 
@@ -84,7 +68,6 @@
 
   function clearErrors() {
     document.getElementById('edit-name-error').textContent = '';
-    document.getElementById('edit-phone-error').textContent = '';
     document.getElementById('edit-common-error').textContent = '';
   }
 
@@ -98,23 +81,12 @@
     if (element) element.textContent = message || '';
   }
 
-  function validateEditForm(name, phone) {
-    let ok = true;
-
+  function validateEditForm(name) {
     if (!name) {
       setFieldError('edit-name-error', '이름을 입력해 주세요.');
-      ok = false;
+      return false;
     }
-
-    if (!phone) {
-      setFieldError('edit-phone-error', '핸드폰번호를 입력해 주세요.');
-      ok = false;
-    } else if (phone.length < 10 || phone.length > 11) {
-      setFieldError('edit-phone-error', '핸드폰번호 형식이 올바르지 않습니다.');
-      ok = false;
-    }
-
-    return ok;
+    return true;
   }
 
   async function fetchMyInfo(userId) {
@@ -129,19 +101,11 @@
   function bindEditEvents(user) {
     const form = document.getElementById('edit-form');
     const nameInput = document.getElementById('edit-name');
-    const phoneInput = document.getElementById('edit-phone');
     const submitButton = document.getElementById('edit-submit-button');
     const cancelButton = document.getElementById('edit-cancel-button');
 
     nameInput.addEventListener('input', function () {
       setFieldError('edit-name-error', '');
-      setCommonError('');
-    });
-
-    phoneInput.addEventListener('input', function () {
-      const raw = normalizePhone(phoneInput.value);
-      phoneInput.value = formatPhone(raw);
-      setFieldError('edit-phone-error', '');
       setCommonError('');
     });
 
@@ -163,14 +127,13 @@
 
       const userId = runtime.getStoredUserId ? runtime.getStoredUserId() : '';
       const name = nameInput.value.trim();
-      const phone = normalizePhone(phoneInput.value);
 
       if (!userId) {
         setCommonError('로그인 정보가 없습니다.');
         return;
       }
 
-      if (!validateEditForm(name, phone)) {
+      if (!validateEditForm(name)) {
         return;
       }
 
@@ -179,7 +142,7 @@
       submitButton.textContent = '수정중...';
 
       try {
-        await requestEdit({ user_id: userId, name, phone });
+        await requestEdit({ user_id: userId, name });
 
         if (runtime.setStoredUserId) {
           runtime.setStoredUserId(userId);
@@ -188,7 +151,7 @@
           runtime.patchLoginUser({
             user_id: userId,
             name,
-            phone,
+            email: user.email,
             created_at: user.created_at
           });
         }

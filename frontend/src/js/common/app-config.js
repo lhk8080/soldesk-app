@@ -610,4 +610,24 @@
   }
 
   runtime.notifyReadCacheRebuilt = notifyReadCacheRebuilt;
+
+  /**
+   * Cognito 세션이 살아있는데 localStorage.user_id 가 int 가 아니면
+   * (= 옛 버전에서 저장된 Cognito sub UUID) /api/read/auth/me 로 DB int user_id 를
+   * 받아와 덮어씀. 예매·대기열 payload.user_id 가 항상 int 가 되도록 보장.
+   */
+  async function healStaleUserId() {
+    try {
+      if (!window.CognitoAuth || !window.CognitoAuth.isLoggedIn()) return;
+      const stored = (localStorage.getItem('user_id') || '').trim();
+      if (stored && /^\d+$/.test(stored)) return;
+      const me = await getJson('/api/read/auth/me');
+      if (me && me.user && me.user.user_id) {
+        setStoredUserId(me.user.user_id);
+        const current = getLoginUser() || {};
+        setLoginUser({ ...current, user_id: me.user.user_id }, { preserveExpires: true });
+      }
+    } catch (e) { /* 네트워크/401 → 다음 로그인 시 치유 */ }
+  }
+  setTimeout(healStaleUserId, 0);
 })();

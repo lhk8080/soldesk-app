@@ -133,6 +133,8 @@
   }
 
   function getStoredUserId() {
+    // Cognito 전환 후 user_id 는 UUID(sub) 문자열 → 숫자 정규식 검증 제거(c68c45c).
+    // 백엔드 Cognito 미들웨어가 x-cognito-sub 헤더를 resolve 해 DB int user_id 로 매핑.
     if (window.APP_RUNTIME && typeof window.APP_RUNTIME.getStoredUserId === 'function') {
       return String(window.APP_RUNTIME.getStoredUserId() || '').trim();
     }
@@ -496,7 +498,9 @@
         if (mySeq !== holdPollSeq) return;
         const rev = light && Number.isFinite(Number(light.hold_rev)) ? Number(light.hold_rev) : 0;
         if (rev === lastAppliedHoldRev) return;
-        applyBookingHoldsPayload(light, { updateDisplayCounts: false });
+        // 좌석 색(hold/confirmed) 갱신과 동일한 타이밍에 "표시 잔여좌석"도 함께 갱신한다.
+        // 서버 호출을 추가하지 않고(동일 응답 재사용) UX만 최신화한다.
+        applyBookingHoldsPayload(light, { updateDisplayCounts: true });
         lastAppliedHoldRev = rev;
         Object.assign(show, { remain_count: remainCount, total_count: totalCount });
       } catch (e) {

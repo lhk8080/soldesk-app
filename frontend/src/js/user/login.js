@@ -261,6 +261,25 @@
         runtime.setLoginUser(userData);
         runtime.setStoredUserId(userInfo.sub);
 
+        // Cognito sub 은 UUID 문자열이라 백엔드(int) 와 타입이 안 맞음.
+        // /api/read/auth/me 로 DB int user_id 를 받아 localStorage 를 덮어써야
+        // 예매·대기열 같이 payload.user_id 만 보는 엔드포인트에서 400/500 이 안 남.
+        try {
+          const me = await runtime.getJson('/api/read/auth/me');
+          if (me && me.user && me.user.user_id) {
+            // user_id 뿐 아니라 name/email/phone 도 DB 기준으로 덮어써 localStorage 에 박아둠.
+            // - id_token refresh 시 name claim 이 빠지는 케이스 대비
+            // - 마이페이지 phone 수정 결과가 즉시 헤더/상태에 반영되도록
+            const patch = { user_id: me.user.user_id };
+            if (me.user.name)  patch.name  = me.user.name;
+            if (me.user.email) patch.email = me.user.email;
+            if (me.user.phone) patch.phone = me.user.phone;
+            runtime.patchLoginUser(patch);
+          }
+        } catch (meErr) {
+          console.warn('[login] resolve DB user_id failed:', meErr);
+        }
+
         closeLoginPage();
 
         if (typeof window.refreshSiteHeader === 'function') {

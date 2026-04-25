@@ -14,17 +14,6 @@
       .replace(/'/g, '&#39;');
   }
 
-  function formatPhone(phone) {
-    const raw = String(phone || '').replace(/[^0-9]/g, '');
-    if (raw.length === 11) {
-      return `${raw.slice(0, 3)}-${raw.slice(3, 7)}-${raw.slice(7)}`;
-    }
-    if (raw.length === 10) {
-      return `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6)}`;
-    }
-    return phone || '-';
-  }
-
   function formatJoinDate(value) {
     if (!value) return '-';
     const date = new Date(value);
@@ -59,8 +48,8 @@
                         <td id="mypage-user-name">-</td>
                       </tr>
                       <tr>
-                        <th>핸드폰번호</th>
-                        <td id="mypage-user-phone">-</td>
+                        <th>이메일</th>
+                        <td id="mypage-user-email">-</td>
                       </tr>
                       <tr>
                         <th>가입일</th>
@@ -171,17 +160,17 @@
       runtime.patchLoginUser({
         user_id: finalUserId,
         name: user.name,
-        phone: user.phone,
+        email: user.email,
         created_at: user.created_at
       });
     }
 
     const nameNode = document.getElementById('mypage-user-name');
-    const phoneNode = document.getElementById('mypage-user-phone');
+    const emailNode = document.getElementById('mypage-user-email');
     const createdAtNode = document.getElementById('mypage-user-created-at');
 
     if (nameNode) nameNode.textContent = user.name || '-';
-    if (phoneNode) phoneNode.textContent = formatPhone(user.phone);
+    if (emailNode) emailNode.textContent = user.email || '-';
     if (createdAtNode) createdAtNode.textContent = formatJoinDate(user.created_at);
   }
 

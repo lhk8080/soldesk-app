@@ -227,6 +227,24 @@
   async function mountHeader() {
     await ensureHeadCss();
 
+    // 로그인 상태인데 localStorage user.name 이 비어있으면 (= id_token refresh 로 name claim 이 빠졌거나
+    // 만료 복원 시점) /auth/me 로 DB 이름을 가져와 localStorage 에 박아둔다.
+    // 이 보강이 없으면 헤더가 "회원님" 으로 표시됨.
+    const currentUser = getLoginUser();
+    if (currentUser && !currentUser.name && typeof runtime.getJson === 'function') {
+      try {
+        const me = await runtime.getJson('/api/read/auth/me');
+        if (me && me.user && (me.user.name || me.user.email || me.user.phone)) {
+          const patch = {};
+          if (me.user.user_id) patch.user_id = me.user.user_id;
+          if (me.user.name)    patch.name  = me.user.name;
+          if (me.user.email)   patch.email = me.user.email;
+          if (me.user.phone)   patch.phone = me.user.phone;
+          if (typeof runtime.patchLoginUser === 'function') runtime.patchLoginUser(patch);
+        }
+      } catch (_) { /* network/401 무시 — 헤더만 "회원님" 으로 fallback */ }
+    }
+
     let siteHeader = document.getElementById('site-header');
     if (!siteHeader) {
       siteHeader = document.createElement('div');

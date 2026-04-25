@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(20) NULL,
   email VARCHAR(255) NULL,
   cognito_sub VARCHAR(255) UNIQUE,
+  -- Cognito 전환 후 실로그인에는 미사용. 형 Insert.sql 더미 유저 시딩 호환을 위해 컬럼만 유지.
+  password_hash VARCHAR(255) NULL,
   name VARCHAR(50) NOT NULL DEFAULT '',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -245,28 +247,6 @@ CREATE TABLE IF NOT EXISTS concert_booking_seats (
   CONSTRAINT chk_cbs_row CHECK (seat_row_no > 0),
   CONSTRAINT chk_cbs_col CHECK (seat_col_no > 0),
   UNIQUE INDEX uq_concert_booking_seats_active_seat (active_show_id, active_row_no, active_col_no)
-);
-
--- 콘서트 좌석 홀드(주황) DB 폴백용 테이블
--- - Redis(CACHE_ENABLED=false 또는 장애)에서도 홀드/잔여를 계산할 근거 데이터
--- - 활성 홀드만 1개 존재하도록 UNIQUE (show_id,row,col)
-CREATE TABLE IF NOT EXISTS concert_seat_holds (
-  hold_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  booking_ref VARCHAR(64) NOT NULL,
-  show_id BIGINT NOT NULL,
-  seat_row_no INT NOT NULL,
-  seat_col_no INT NOT NULL,
-  -- NULL이면 무기한(기본 정책 TTL=0 지원)
-  expires_at DATETIME NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE INDEX uq_concert_seat_holds_pos (show_id, seat_row_no, seat_col_no),
-  INDEX idx_concert_seat_holds_booking_ref (booking_ref),
-  INDEX idx_concert_seat_holds_expires_at (expires_at),
-  CONSTRAINT fk_csh_show
-    FOREIGN KEY (show_id) REFERENCES concert_shows(show_id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT chk_csh_row CHECK (seat_row_no > 0),
-  CONSTRAINT chk_csh_col CHECK (seat_col_no > 0)
 );
 
 CREATE TABLE IF NOT EXISTS concert_payment (

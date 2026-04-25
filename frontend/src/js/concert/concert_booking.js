@@ -2,8 +2,13 @@
   const CONCERT_BOOKING_CSS_PATH = '/css/concert/concert_booking.css';
   const CONCERT_BOOKING_CSS_URL = `${CONCERT_BOOKING_CSS_PATH}?v=20260408_concert_booking`;
   const MODAL_SCRIPT = '/js/concert/concert_booking_modal.js';
+  const LIVE_POLL_MS = 750;
 
   const runtime = window.APP_RUNTIME || {};
+  let livePollTimer = null;
+  let liveInFlight = false;
+  let liveSeq = 0;
+  let lastRevByShow = new Map();
 
   function ensureMainCss() {
     if (runtime.ensureStyle) {
@@ -175,10 +180,124 @@
     });
   }
 
+  function stopLivePoll() {
+    if (livePollTimer) {
+      clearInterval(livePollTimer);
+      livePollTimer = null;
+    }
+    liveInFlight = false;
+    liveSeq = 0;
+    lastRevByShow = new Map();
+  }
+
+  function collectShowIds(shows) {
+    const ids = [];
+    (shows || []).forEach((s) => {
+      const sid = toInt(s && s.show_id ? s.show_id : 0);
+      if (sid > 0) ids.push(sid);
+    });
+    return Array.from(new Set(ids));
+  }
+
+  function applyRemainToDom(mount, showsMap) {
+    if (!mount || !mount.isConnected) return;
+    const nodes = mount.querySelectorAll('[data-show-id][data-role="remain"]');
+    if (!nodes || !nodes.length) return;
+    nodes.forEach((n) => {
+      const sid = String(n.getAttribute('data-show-id') || '').trim();
+      const row = showsMap && sid ? showsMap[sid] : null;
+      if (!row) return;
+      const remain = Math.max(0, toInt(row.remain_count));
+      const total = Math.max(0, toInt(n.getAttribute('data-total-count')));
+      const text = remain <= 0
+        ? '매진'
+        : `잔여좌석 ${remain}${total > 0 ? ` / ${total}` : ''}`;
+      if (n.textContent !== text) n.textContent = text;
+
+      // 버튼 disabled 토글 (remain 기반)
+      const btn = n.closest('button');
+      if (btn) {
+        const disabled = remain <= 0;
+        btn.disabled = disabled;
+        btn.classList.toggle('is-disabled', disabled);
+      }
+    });
+  }
+
+  function startLivePoll(state) {
+    stopLivePoll();
+    if (!state || !state.mount) return;
+    if (typeof readApi !== 'function') return;
+
+    const ids = collectShowIds(state.shows);
+    if (!ids.length) return;
+    const cid = toInt(state.concert && state.concert.concert_id ? state.concert.concert_id : 0);
+    if (cid <= 0) return;
+
+    async function tick() {
+      if (!state.mount || !state.mount.isConnected) {
+        stopLivePoll();
+        return;
+      }
+      if (document.hidden) return;
+      if (liveInFlight) return;
+      liveInFlight = true;
+      const mySeq = (liveSeq += 1);
+      try {
+        const results = await Promise.allSettled(
+          ids.map((sid) => readApi(`/concert/${cid}/booking-holds`, {
+            cache: 'no-store',
+            query: { show_id: sid }
+          }))
+        );
+        if (mySeq !== liveSeq) return;
+
+        const showsMap = {};
+        let changed = false;
+        results.forEach((r, i) => {
+          const sid = ids[i];
+          if (!r || r.status !== 'fulfilled') return;
+          const data = r.value;
+          if (!data || !data.ok) return;
+          const rev = Number(data.hold_rev || 0);
+          const prev = Number(lastRevByShow.get(String(sid)) || 0);
+          // 모달과 동일하게 hold_rev 변화 타이밍에 맞춰 갱신
+          if (rev !== prev) {
+            lastRevByShow.set(String(sid), rev);
+            changed = true;
+          }
+          if (Number.isFinite(Number(data.remain_count))) {
+            showsMap[String(sid)] = { show_id: sid, hold_rev: rev, remain_count: toInt(data.remain_count) };
+          }
+        });
+
+        if (!changed) return;
+        // state의 show.remain_count도 동기화(모달 오픈 시 최신값 사용)
+        state.shows.forEach((s) => {
+          const sid = String(s.show_id);
+          const row = showsMap[sid];
+          if (row && Number.isFinite(Number(row.remain_count))) {
+            s.remain_count = toInt(row.remain_count);
+          }
+        });
+        applyRemainToDom(state.mount, showsMap);
+      } catch (e) {
+        /* ignore */
+      } finally {
+        liveInFlight = false;
+      }
+    }
+
+    // first tick immediately
+    tick();
+    livePollTimer = setInterval(tick, LIVE_POLL_MS);
+  }
+
   function createScheduleButton(concert, show, state) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'concert-booking-card';
+    btn.dataset.showId = String(show.show_id || '');
 
     // 마감/비활성 판단은 remain_count만 사용한다.
     // 과거에 show.status가 CLOSED로 "박히고" remain은 양수인 꼬임이 발생할 수 있어,
@@ -200,7 +319,11 @@
         <span>${escapeHtml(show.hall_name || '홀')}</span>
         <span>${escapeHtml(show.venue_name || '')}</span>
       </div>
-      <div class="concert-booking-remain">${remainText}</div>
+      <div class="concert-booking-remain" data-role="remain"
+        data-show-id="${escapeHtml(String(show.show_id || ''))}"
+        data-total-count="${escapeHtml(String(show.total_count || ''))}">
+        ${remainText}
+      </div>
     `;
 
     if (!disabled) {
@@ -299,9 +422,11 @@
       });
 
       renderPage(mount, state);
+      startLivePoll(state);
       window.scrollTo({ top: 0, behavior: 'auto' });
     } catch (e) {
       console.error(e);
+      stopLivePoll();
       mount.innerHTML = `
         <div class="theaters-booking-page">
           <div class="theaters-booking-error">예매 정보를 불러오지 못했습니다.</div>

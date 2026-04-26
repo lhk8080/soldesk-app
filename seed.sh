@@ -19,7 +19,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 환경 변수 ──────────────────────────────────────────────────────────────
 : "${AWS_REGION:=ap-northeast-2}"
-: "${TF_STATE_BUCKET:?'TF_STATE_BUCKET env var required'}"
 : "${SSM_PREFIX:=/ticketing/prod}"
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
@@ -30,6 +29,13 @@ INFRA_DIR="${INFRA_DIR:-$(cd "${SCRIPT_DIR}/../soldesk-infra" 2>/dev/null && pwd
 if [[ -z "${INFRA_DIR}" ]]; then
   echo "ERROR: soldesk-infra 디렉토리를 찾을 수 없습니다. INFRA_DIR 환경 변수를 지정하세요."
   exit 1
+fi
+
+if [[ -z "${TF_STATE_BUCKET:-}" ]]; then
+  echo ">>> TF_STATE_BUCKET 미설정 — bootstrap output에서 읽기"
+  cd "${INFRA_DIR}/bootstrap"
+  TF_STATE_BUCKET=$(terraform output -raw s3_bucket_name)
+  echo "    TF_STATE_BUCKET=${TF_STATE_BUCKET}"
 fi
 
 # ── 1. infra terraform outputs 읽기 ───────────────────────────────────────
@@ -114,7 +120,7 @@ else
 #!/bin/bash
 set -e
 
-MYSQL="mysql -h ${DB_HOST} -u ${DB_USER} -p${DB_PASSWORD} --connect-timeout=10"
+MYSQL="mysql -h ${DB_HOST} -u ${DB_USER} -p${DB_PASSWORD} --connect-timeout=10 --default-character-set=utf8mb4"
 
 echo "[migrate] create.sql 적용 (idempotent)..."
 $MYSQL < /sql/create.sql
@@ -122,7 +128,7 @@ $MYSQL < /sql/create.sql
 echo "[migrate] seed.sql 적용 (idempotent)..."
 $MYSQL ticketing < /sql/seed.sql
 
-echo "[migrate] schema_migrations 테이블 초기화..."
+echo "[migrate] schema_migrations 테이블 확인..."
 $MYSQL ticketing -e "
   CREATE TABLE IF NOT EXISTS schema_migrations (
     version VARCHAR(255) PRIMARY KEY,
@@ -130,17 +136,26 @@ $MYSQL ticketing -e "
   );
 "
 
-for version in ${MIGRATION_VERSIONS}; do
-  already=$($MYSQL ticketing -sN -e "SELECT COUNT(*) FROM schema_migrations WHERE version='${version}'")
-  if [ "${already}" = "0" ]; then
-    echo "[migrate] ${version} 적용..."
-    $MYSQL ticketing < "/sql/${version}.sql"
+ROWS=$($MYSQL ticketing -sN -e "SELECT COUNT(*) FROM schema_migrations")
+if [ "${ROWS}" = "0" ]; then
+  echo "[migrate] schema_migrations 비어있음 — create.sql 이 최신 스키마를 포함하므로 모든 migration 을 자동 마킹."
+  for version in ${MIGRATION_VERSIONS}; do
+    echo "[migrate] ${version} 자동 마킹"
     $MYSQL ticketing -e "INSERT INTO schema_migrations (version) VALUES ('${version}')"
-    echo "[migrate] ${version} 완료"
-  else
-    echo "[migrate] ${version} 건너뜀 (이미 적용됨)"
-  fi
-done
+  done
+else
+  for version in ${MIGRATION_VERSIONS}; do
+    already=$($MYSQL ticketing -sN -e "SELECT COUNT(*) FROM schema_migrations WHERE version='${version}'")
+    if [ "${already}" = "0" ]; then
+      echo "[migrate] ${version} 적용..."
+      $MYSQL ticketing < "/sql/${version}.sql"
+      $MYSQL ticketing -e "INSERT INTO schema_migrations (version) VALUES ('${version}')"
+      echo "[migrate] ${version} 완료"
+    else
+      echo "[migrate] ${version} 건너뜀 (이미 적용됨)"
+    fi
+  done
+fi
 
 echo "[migrate] 완료"
 RUNNER_EOF
@@ -211,11 +226,11 @@ spec:
             defaultMode: 0755
 EOF
 
-  echo "  Job 완료 대기 (timeout 5m)..."
+  echo "  Job 완료 대기 (timeout 30m)..."
   kubectl wait job/db-migration \
     --namespace=default \
     --for=condition=complete \
-    --timeout=300s
+    --timeout=1800s
 
   echo "  마이그레이션 로그:"
   kubectl logs job/db-migration --namespace=default
@@ -348,14 +363,31 @@ else
     exit 1
   fi
 
+  # index.html 에 Cognito + API origin 인라인 주입
+  COGNITO_CLIENT_ID=$(cd "${INFRA_DIR}/infra" && terraform output -raw cognito_client_id)
+  COGNITO_USER_POOL_ID=$(cd "${INFRA_DIR}/infra" && terraform output -raw cognito_user_pool_id)
+  # CloudFront 경유 same-origin 호출이므로 API_ORIGIN 은 빈 문자열
+  API_ORIGIN=""
+
+  TMP_INDEX=$(mktemp)
+  sed "s|<script src=\"/api-origin.js\"></script>|<script>window.__TICKETING_API_ORIGIN__=\"${API_ORIGIN}\";window.COGNITO_CONFIG={REGION:\"${AWS_REGION}\",CLIENT_ID:\"${COGNITO_CLIENT_ID}\",USER_POOL_ID:\"${COGNITO_USER_POOL_ID}\"};</script>|" \
+    "${FRONTEND_SRC}/index.html" > "${TMP_INDEX}"
+
   echo "  S3 sync → s3://${FRONTEND_BUCKET}/"
   aws s3 sync "${FRONTEND_SRC}" "s3://${FRONTEND_BUCKET}/" \
     --delete \
+    --exclude "index.html" \
     --region "${AWS_REGION}"
+
+  aws s3 cp "${TMP_INDEX}" "s3://${FRONTEND_BUCKET}/index.html" \
+    --content-type "text/html; charset=utf-8" \
+    --cache-control "no-store, max-age=0" \
+    --region "${AWS_REGION}"
+  rm -f "${TMP_INDEX}"
 
   # CloudFront distribution ID 조회
   CF_DIST_ID=$(aws cloudfront list-distributions \
-    --query "DistributionList.Items[?contains(Aliases.Items, '${CF_DOMAIN}') || DomainName=='${CF_DOMAIN}'].Id" \
+    --query "DistributionList.Items[?DomainName=='${CF_DOMAIN}'].Id" \
     --output text \
     --region "${AWS_REGION}" | head -1)
 

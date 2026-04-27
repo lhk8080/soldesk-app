@@ -1,0 +1,42 @@
+name: Frontend - Deploy to S3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/build-frontend.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-2
+  S3_BUCKET:  ticketing-frontend-${{ secrets.AWS_ACCOUNT_ID }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AWS 자격증명
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: S3 동기화
+        run: |
+          aws s3 sync frontend/src/ s3://${{ env.S3_BUCKET }}/ \
+            --delete \
+            --cache-control 'public, max-age=300'
+
+      - name: CloudFront 캐시 무효화
+        run: |
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Origins.Items[?contains(DomainName, '${{ env.S3_BUCKET }}')]].Id | [0]" \
+            --output text)
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths '/*'

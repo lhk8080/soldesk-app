@@ -2,7 +2,7 @@ name: Backend - Test, Build & Publish
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'backend/**'
       - '.github/workflows/build-backend.yml'
@@ -121,3 +121,68 @@ jobs:
         run: |
           docker push ${{ env.IMAGE }}:${{ github.sha }}
           docker push ${{ env.IMAGE }}:latest
+
+  bump-image-tag:
+    runs-on: ubuntu-latest
+    needs: [changes, build-and-publish]
+    if: |
+      needs.changes.outputs.ticketing-was == 'true' ||
+      needs.changes.outputs.worker-svc    == 'true'
+    steps:
+      - name: 환경 결정 (main → prod, dev → dev)
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "name=prod" >> $GITHUB_OUTPUT
+          else
+            echo "name=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: soldesk-k8s 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: lhk8080/soldesk-k8s
+          token: ${{ secrets.K8S_REPO_TOKEN }}
+          path: soldesk-k8s
+
+      - name: image.tag 갱신
+        working-directory: soldesk-k8s
+        env:
+          ENV_NAME:    ${{ steps.env.outputs.name }}
+          NEW_TAG:     ${{ github.sha }}
+          WAS_CHANGED: ${{ needs.changes.outputs.ticketing-was }}
+          WORKER_CHANGED: ${{ needs.changes.outputs.worker-svc }}
+        run: |
+          # github.sha 는 40자 → seed.sh 와 동일하게 짧은 SHA(7자) 로 통일
+          SHORT_SHA="${NEW_TAG:0:7}"
+          VALUES="environments/${ENV_NAME}/ticketing-values.yaml"
+          python3 - "$VALUES" "$SHORT_SHA" "$WAS_CHANGED" "$WORKER_CHANGED" <<'PY'
+          import sys, re
+          path, tag, was_changed, worker_changed = sys.argv[1:]
+          with open(path) as f: text = f.read()
+          if was_changed == 'true':
+              text = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>{tag}', text, count=1)
+          if worker_changed == 'true':
+              text = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>{tag}', text, count=1)
+          with open(path, 'w') as f: f.write(text)
+          PY
+
+          if git diff --quiet "$VALUES"; then
+            echo "변경 없음"
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$VALUES"
+          git commit -m "chore(${ENV_NAME}): bump image tag to ${SHORT_SHA}"
+
+          # race 방지: pull --rebase 후 push, 실패 시 5회 retry
+          for i in 1 2 3 4 5; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((RANDOM % 5 + 2))
+          done
+          echo "push 5회 실패" >&2
+          exit 1

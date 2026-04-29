@@ -15,3 +15,4 @@ USER appuser
 #   write-api: uvicorn write_app:app --host 0.0.0.0 --port 5001
 EXPOSE 5000 5001
 CMD ["uvicorn", "read_app:app", "--host", "0.0.0.0", "--port", "5000"]
+

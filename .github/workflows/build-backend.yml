@@ -93,6 +93,14 @@ jobs:
       - uses: actions/checkout@v4
         if: matrix.changed == 'true'
 
+      - name: Role ARN 확인 (디버깅)
+        if: matrix.changed == 'true'
+        run: |
+          ARN="${{ secrets.AWS_ROLE_ARN }}"
+          # secret 자체는 mask 되지만 계정 ID 부분만 따로 echo 하면 보임
+          echo "Role ARN account part: $(echo "$ARN" | cut -d: -f5)"
+          echo "Role ARN role part:    $(echo "$ARN" | cut -d/ -f2)"
+
       - name: AWS 자격증명
         if: matrix.changed == 'true'
         uses: aws-actions/configure-aws-credentials@v4

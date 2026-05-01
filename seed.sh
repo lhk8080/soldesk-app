@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 환경 변수 ──────────────────────────────────────────────────────────────
 : "${AWS_REGION:=ap-northeast-2}"
-: "${SSM_PREFIX:=/ticketing/prod}"
+# SSM_PREFIX 는 infra terraform output(env) 에서 자동 결정. 강제 지정도 가능.
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
 SKIP_MIGRATE="${SKIP_MIGRATE:-0}"
@@ -46,6 +46,14 @@ cd "${INFRA_DIR}/infra"
 
 tf_output() { terraform output -raw "$1"; }
 
+ENV=$(tf_output env)
+: "${SSM_PREFIX:=/ticketing/${ENV}}"
+# dev 환경이면 dev block(같은 RDS 에 ticketing_dev 추가) 을 자동으로 건너뜀.
+# dev block 은 env=prod 일 때만 의미가 있음 (prod RDS 안에 dev DB 분리).
+if [[ "${ENV}" == "dev" && "${SKIP_DEV}" == "0" ]]; then
+  SKIP_DEV=1
+fi
+
 CLUSTER_NAME=$(tf_output cluster_name)
 ECR_WAS_URL=$(tf_output ecr_ticketing_was_url)
 ECR_WORKER_URL=$(tf_output ecr_worker_svc_url)
@@ -59,6 +67,8 @@ ASSETS_BUCKET=$(tf_output assets_bucket_id)
 
 ECR_REGISTRY="${ECR_WAS_URL%%/*}"  # account.dkr.ecr.region.amazonaws.com
 
+echo "  env         : ${ENV}"
+echo "  SSM prefix  : ${SSM_PREFIX}"
 echo "  cluster     : ${CLUSTER_NAME}"
 echo "  ECR WAS     : ${ECR_WAS_URL}"
 echo "  ECR worker  : ${ECR_WORKER_URL}"
@@ -430,28 +440,22 @@ else
   WAS_SHA=$(cd "${SCRIPT_DIR}/backend/ticketing-was" && git rev-parse --short HEAD)
   WAS_TAG="${WAS_SHA}"
   echo "  ticketing-was 빌드 (tag: ${WAS_TAG})..."
-  docker build \
-    -t "${ECR_WAS_URL}:${WAS_TAG}" \
-    -t "${ECR_WAS_URL}:latest" \
-    "${SCRIPT_DIR}/backend/ticketing-was"
+  docker build -t "${ECR_WAS_URL}:${WAS_TAG}" "${SCRIPT_DIR}/backend/ticketing-was"
   docker push "${ECR_WAS_URL}:${WAS_TAG}"
-  docker push "${ECR_WAS_URL}:latest"
 
   # worker-svc 빌드
   WORKER_SHA=$(cd "${SCRIPT_DIR}/backend/worker-svc" && git rev-parse --short HEAD)
   WORKER_TAG="${WORKER_SHA}"
   echo "  worker-svc 빌드 (tag: ${WORKER_TAG})..."
-  docker build \
-    -t "${ECR_WORKER_URL}:${WORKER_TAG}" \
-    -t "${ECR_WORKER_URL}:latest" \
-    "${SCRIPT_DIR}/backend/worker-svc"
+  docker build -t "${ECR_WORKER_URL}:${WORKER_TAG}" "${SCRIPT_DIR}/backend/worker-svc"
   docker push "${ECR_WORKER_URL}:${WORKER_TAG}"
-  docker push "${ECR_WORKER_URL}:latest"
 fi
 
-# ── 5. soldesk-k8s prod values 의 image tag 갱신 (GitOps) ─────────────────
+# ── 5. soldesk-k8s prod + dev values 의 image tag 갱신 (GitOps) ───────────
+# seed.sh 는 초기 세팅용이라 prod/dev 모두 같은 이미지 태그로 맞춰둔다.
+# 이후 분기는 GitHub Actions CI 가 담당.
 echo ""
-echo ">>> [5a/5] soldesk-k8s prod values 의 image.tag 갱신 + commit + push"
+echo ">>> [5a/5] soldesk-k8s prod + dev values 의 image.tag 갱신 + commit + push"
 
 if [[ -z "${WAS_TAG}" || -z "${WORKER_TAG}" || "${WAS_TAG}" == "seed-pending" ]]; then
   echo "WARNING: image.tag 미결정 — values 파일 갱신 건너뜀"
@@ -462,15 +466,19 @@ else
     exit 1
   fi
 
-  VALUES_FILE="${K8S_DIR}/environments/prod/ticketing-values.yaml"
+  VALUES_PROD="${K8S_DIR}/environments/prod/ticketing-values.yaml"
+  VALUES_DEV="${K8S_DIR}/environments/dev/ticketing-values.yaml"
   echo "  was.tag    : ${WAS_TAG}"
   echo "  worker.tag : ${WORKER_TAG}"
-  echo "  values     : ${VALUES_FILE}"
+  echo "  prod values: ${VALUES_PROD}"
+  echo "  dev values : ${VALUES_DEV}"
 
   cd "${K8S_DIR}"
   git pull --rebase --autostash
-  # image.was.tag / image.worker.tag 는 image: 블록 아래 들여쓰기 2칸 + tag: 줄
-  python3 - "${VALUES_FILE}" "${WAS_TAG}" "${WORKER_TAG}" <<'PY'
+
+  for vf in "${VALUES_PROD}" "${VALUES_DEV}"; do
+    [[ -f "$vf" ]] || { echo "  skip (없음): $vf"; continue; }
+    python3 - "$vf" "${WAS_TAG}" "${WORKER_TAG}" <<'PY'
 import sys, re
 path, was, worker = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path) as f: text = f.read()
@@ -478,12 +486,13 @@ text = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>{was}', text, co
 text = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>{worker}', text, count=1)
 with open(path, 'w') as f: f.write(text)
 PY
+  done
 
-  if git diff --quiet "${VALUES_FILE}"; then
+  if git diff --quiet "${VALUES_PROD}" "${VALUES_DEV}"; then
     echo "  변경 없음 (이미 동일 tag)"
   else
-    git add "${VALUES_FILE}"
-    git commit -m "chore(prod): bump image tag to ${WAS_TAG}/${WORKER_TAG}"
+    git add "${VALUES_PROD}" "${VALUES_DEV}"
+    git commit -m "chore(seed): bump prod+dev image tag to ${WAS_TAG}/${WORKER_TAG}"
     git push origin HEAD
     echo "  push 완료 — ArgoCD 가 자동 sync 할 것"
   fi

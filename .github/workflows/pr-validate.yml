@@ -1,0 +1,91 @@
+name: PR Validate (dev → main)
+
+# dev → main PR 시 안전망: 단위 테스트 + 현재 dev 가 가리키는 ECR 이미지 trivy 재스캔.
+# trivy DB 가 갱신되므로 dev push 때 통과한 이미지도 다시 스캔하는 게 안전.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/pr-validate.yml'
+
+env:
+  AWS_REGION:   ap-northeast-2
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: ticketing-was
+            path: backend/ticketing-was
+          - service: worker-svc
+            path: backend/worker-svc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 셋업
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: ${{ matrix.path }}/requirements-dev.txt
+
+      - name: 의존성 설치
+        working-directory: ${{ matrix.path }}
+        run: pip install -r requirements-dev.txt
+
+      - name: pytest
+        working-directory: ${{ matrix.path }}
+        run: pytest -v tests/
+
+  scan-dev-images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: soldesk-k8s 체크아웃 (dev tag 조회)
+        uses: actions/checkout@v4
+        with:
+          repository: lhk8080/soldesk-k8s
+          token: ${{ secrets.K8S_REPO_TOKEN }}
+          path: soldesk-k8s
+
+      - name: dev was.tag / worker.tag 추출
+        id: tags
+        run: |
+          VALUES=soldesk-k8s/environments/dev/ticketing-values.yaml
+          WAS=$(python3 -c "import re;print(re.search(r'image:\s*\n  was:\s*\n    tag:\s*(\S+)', open('$VALUES').read()).group(1))")
+          WORKER=$(python3 -c "import re;print(re.search(r'  worker:\s*\n    tag:\s*(\S+)', open('$VALUES').read()).group(1))")
+          echo "was=$WAS"       >> $GITHUB_OUTPUT
+          echo "worker=$WORKER" >> $GITHUB_OUTPUT
+
+      - name: AWS 자격증명
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: ECR 로그인
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Trivy — ticketing-was
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/ticketing/ticketing-was:${{ steps.tags.outputs.was }}
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Trivy — worker-svc
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/ticketing/worker-svc:${{ steps.tags.outputs.worker }}
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0'

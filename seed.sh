@@ -9,7 +9,8 @@
 #
 # 선택 옵션:
 #   SKIP_BUILD=1       — ECR 빌드/푸시 생략 (이미 이미지가 있을 때)
-#   SKIP_MIGRATE=1     — DB 마이그레이션 생략
+#   SKIP_MIGRATE=1     — DB 마이그레이션 생략 (prod + dev 모두)
+#   SKIP_DEV=1         — dev DB/user 생성 + dev 마이그레이션만 생략
 #   SKIP_FRONTEND=1    — S3 sync / CF invalidation 생략
 #   INFRA_DIR=<path>   — soldesk-infra 경로 (기본: ../soldesk-infra)
 
@@ -19,11 +20,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 환경 변수 ──────────────────────────────────────────────────────────────
 : "${AWS_REGION:=ap-northeast-2}"
-: "${SSM_PREFIX:=/ticketing/prod}"
+# SSM_PREFIX 는 infra terraform output(env) 에서 자동 결정. 강제 지정도 가능.
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
 SKIP_MIGRATE="${SKIP_MIGRATE:-0}"
 SKIP_FRONTEND="${SKIP_FRONTEND:-0}"
+SKIP_DEV="${SKIP_DEV:-0}"
 
 INFRA_DIR="${INFRA_DIR:-$(cd "${SCRIPT_DIR}/../soldesk-infra" 2>/dev/null && pwd || echo "")}"
 if [[ -z "${INFRA_DIR}" ]]; then
@@ -44,6 +46,14 @@ cd "${INFRA_DIR}/infra"
 
 tf_output() { terraform output -raw "$1"; }
 
+ENV=$(tf_output env)
+: "${SSM_PREFIX:=/ticketing/${ENV}}"
+# dev 환경이면 dev block(같은 RDS 에 ticketing_dev 추가) 을 자동으로 건너뜀.
+# dev block 은 env=prod 일 때만 의미가 있음 (prod RDS 안에 dev DB 분리).
+if [[ "${ENV}" == "dev" && "${SKIP_DEV}" == "0" ]]; then
+  SKIP_DEV=1
+fi
+
 CLUSTER_NAME=$(tf_output cluster_name)
 ECR_WAS_URL=$(tf_output ecr_ticketing_was_url)
 ECR_WORKER_URL=$(tf_output ecr_worker_svc_url)
@@ -57,6 +67,8 @@ ASSETS_BUCKET=$(tf_output assets_bucket_id)
 
 ECR_REGISTRY="${ECR_WAS_URL%%/*}"  # account.dkr.ecr.region.amazonaws.com
 
+echo "  env         : ${ENV}"
+echo "  SSM prefix  : ${SSM_PREFIX}"
 echo "  cluster     : ${CLUSTER_NAME}"
 echo "  ECR WAS     : ${ECR_WAS_URL}"
 echo "  ECR worker  : ${ECR_WORKER_URL}"
@@ -239,6 +251,167 @@ EOF
   echo "  임시 리소스 정리..."
   kubectl delete configmap db-migration-sql db-migration-runner --namespace=default --ignore-not-found
   kubectl delete secret db-migration-creds --namespace=default --ignore-not-found
+
+  # ── dev DB / user 생성 + dev 마이그레이션 ────────────────────────────────
+  # 같은 RDS 인스턴스 안에 ticketing_dev DB 분리. SQL 은 ticketing → ticketing_dev sed 치환.
+  DEV_PW_CHECK=$(aws ssm get-parameter \
+    --name "/ticketing/dev/DB_PASSWORD" --with-decryption \
+    --query Parameter.Value --output text \
+    --region "${AWS_REGION}" 2>/dev/null || echo "")
+
+  if [[ "${SKIP_DEV}" == "1" ]]; then
+    echo ""
+    echo ">>> [3b/5] dev 마이그레이션 건너뜀 (SKIP_DEV=1)"
+  elif [[ -z "${DEV_PW_CHECK}" ]]; then
+    echo ""
+    echo ">>> [3b/5] /ticketing/dev/* SSM 파라미터 없음 — dev 블록 건너뜀"
+  else
+    echo ""
+    echo ">>> [3b/5] dev DB/user 생성 + dev 마이그레이션"
+
+    ssm_get_dev() {
+      aws ssm get-parameter --name "/ticketing/dev/$1" --with-decryption \
+        --query Parameter.Value --output text --region "${AWS_REGION}"
+    }
+    DEV_DB_HOST=$(ssm_get_dev DB_WRITER_HOST)
+    DEV_USER=$(ssm_get_dev DB_USER)
+    DEV_PW="${DEV_PW_CHECK}"
+
+    # ticketing → ticketing_dev sed 치환된 SQL ConfigMap
+    TMP_SQL_DIR=$(mktemp -d)
+    for f in "${SCRIPT_DIR}/db-schema/create.sql" "${SCRIPT_DIR}/db-schema/seed.sql" "${MIGRATION_FILES[@]}"; do
+      sed -e 's|^CREATE DATABASE IF NOT EXISTS ticketing$|CREATE DATABASE IF NOT EXISTS ticketing_dev|' \
+          -e 's|^USE ticketing;$|USE ticketing_dev;|' \
+          "$f" > "${TMP_SQL_DIR}/$(basename "$f")"
+    done
+
+    echo "  ConfigMap(dev-db-migration-sql) 생성..."
+    kubectl create configmap dev-db-migration-sql \
+      --from-file="${TMP_SQL_DIR}" \
+      --namespace=default \
+      --dry-run=client -o yaml | kubectl apply -f -
+    rm -rf "${TMP_SQL_DIR}"
+
+    # dev runner: 첫 단계로 user/grant 보장 후 DB_NAME 으로 마이그레이션
+    echo "  ConfigMap(dev-db-migration-runner) 생성..."
+    kubectl create configmap dev-db-migration-runner \
+      --from-literal=runner.sh="$(cat <<'RUNNER_EOF'
+#!/bin/bash
+set -e
+
+MYSQL_ROOT="mysql -h ${DB_HOST} -u root -p${ROOT_PW} --connect-timeout=10 --default-character-set=utf8mb4"
+MYSQL="mysql -h ${DB_HOST} -u ${DB_USER} -p${DB_PASSWORD} --connect-timeout=10 --default-character-set=utf8mb4"
+
+echo "[dev-setup] DB / user / grant 보장 (idempotent)"
+$MYSQL_ROOT <<SQL
+CREATE DATABASE IF NOT EXISTS ${DB_NAME};
+CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASSWORD}';
+ALTER USER '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASSWORD}';
+GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
+FLUSH PRIVILEGES;
+SQL
+
+echo "[migrate] create.sql 적용..."
+$MYSQL < /sql/create.sql
+
+echo "[migrate] seed.sql 적용..."
+$MYSQL ${DB_NAME} < /sql/seed.sql
+
+echo "[migrate] schema_migrations 테이블 확인..."
+$MYSQL ${DB_NAME} -e "
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    version VARCHAR(255) PRIMARY KEY,
+    applied_at DATETIME DEFAULT NOW()
+  );
+"
+
+ROWS=$($MYSQL ${DB_NAME} -sN -e "SELECT COUNT(*) FROM schema_migrations")
+if [ "${ROWS}" = "0" ]; then
+  for version in ${MIGRATION_VERSIONS}; do
+    echo "[migrate] ${version} 자동 마킹"
+    $MYSQL ${DB_NAME} -e "INSERT INTO schema_migrations (version) VALUES ('${version}')"
+  done
+else
+  for version in ${MIGRATION_VERSIONS}; do
+    already=$($MYSQL ${DB_NAME} -sN -e "SELECT COUNT(*) FROM schema_migrations WHERE version='${version}'")
+    if [ "${already}" = "0" ]; then
+      echo "[migrate] ${version} 적용..."
+      $MYSQL ${DB_NAME} < "/sql/${version}.sql"
+      $MYSQL ${DB_NAME} -e "INSERT INTO schema_migrations (version) VALUES ('${version}')"
+    else
+      echo "[migrate] ${version} 건너뜀 (이미 적용됨)"
+    fi
+  done
+fi
+
+echo "[migrate] dev 완료"
+RUNNER_EOF
+)" \
+      --namespace=default \
+      --dry-run=client -o yaml | kubectl apply -f -
+
+    # dev creds Secret (ROOT_PW 는 prod block 의 DB_PASSWORD = root 비번)
+    echo "  Secret(dev-db-migration-creds) 생성..."
+    kubectl create secret generic dev-db-migration-creds \
+      --from-literal=DB_HOST="${DEV_DB_HOST}" \
+      --from-literal=DB_USER="${DEV_USER}" \
+      --from-literal=DB_PASSWORD="${DEV_PW}" \
+      --from-literal=DB_NAME="ticketing_dev" \
+      --from-literal=ROOT_PW="${DB_PASSWORD}" \
+      --namespace=default \
+      --dry-run=client -o yaml | kubectl apply -f -
+
+    kubectl delete job dev-db-migration --namespace=default --ignore-not-found
+
+    echo "  Job(dev-db-migration) 생성..."
+    kubectl apply -f - <<EOF
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dev-db-migration
+  namespace: default
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: mysql:8.0
+          command: ["/bin/bash", "/runner/runner.sh"]
+          envFrom:
+            - secretRef:
+                name: dev-db-migration-creds
+          env:
+            - name: MIGRATION_VERSIONS
+              value: "$(IFS=' '; echo "${MIGRATION_NAMES[*]}")"
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+            - name: runner
+              mountPath: /runner
+      volumes:
+        - name: sql
+          configMap:
+            name: dev-db-migration-sql
+        - name: runner
+          configMap:
+            name: dev-db-migration-runner
+            defaultMode: 0755
+EOF
+
+    echo "  dev Job 완료 대기 (timeout 30m)..."
+    kubectl wait job/dev-db-migration --namespace=default \
+      --for=condition=complete --timeout=1800s
+
+    echo "  dev 마이그레이션 로그:"
+    kubectl logs job/dev-db-migration --namespace=default
+
+    echo "  dev 임시 리소스 정리..."
+    kubectl delete configmap dev-db-migration-sql dev-db-migration-runner --namespace=default --ignore-not-found
+    kubectl delete secret dev-db-migration-creds --namespace=default --ignore-not-found
+  fi
 fi
 
 # ── 4. ECR build + push ────────────────────────────────────────────────────
@@ -267,87 +440,63 @@ else
   WAS_SHA=$(cd "${SCRIPT_DIR}/backend/ticketing-was" && git rev-parse --short HEAD)
   WAS_TAG="${WAS_SHA}"
   echo "  ticketing-was 빌드 (tag: ${WAS_TAG})..."
-  docker build \
-    -t "${ECR_WAS_URL}:${WAS_TAG}" \
-    -t "${ECR_WAS_URL}:latest" \
-    "${SCRIPT_DIR}/backend/ticketing-was"
+  docker build -t "${ECR_WAS_URL}:${WAS_TAG}" "${SCRIPT_DIR}/backend/ticketing-was"
   docker push "${ECR_WAS_URL}:${WAS_TAG}"
-  docker push "${ECR_WAS_URL}:latest"
 
   # worker-svc 빌드
   WORKER_SHA=$(cd "${SCRIPT_DIR}/backend/worker-svc" && git rev-parse --short HEAD)
   WORKER_TAG="${WORKER_SHA}"
   echo "  worker-svc 빌드 (tag: ${WORKER_TAG})..."
-  docker build \
-    -t "${ECR_WORKER_URL}:${WORKER_TAG}" \
-    -t "${ECR_WORKER_URL}:latest" \
-    "${SCRIPT_DIR}/backend/worker-svc"
+  docker build -t "${ECR_WORKER_URL}:${WORKER_TAG}" "${SCRIPT_DIR}/backend/worker-svc"
   docker push "${ECR_WORKER_URL}:${WORKER_TAG}"
-  docker push "${ECR_WORKER_URL}:latest"
 fi
 
-# ── 5. ArgoCD Application image tag 갱신 ──────────────────────────────────
+# ── 5. soldesk-k8s prod + dev values 의 image tag 갱신 (GitOps) ───────────
+# seed.sh 는 초기 세팅용이라 prod/dev 모두 같은 이미지 태그로 맞춰둔다.
+# 이후 분기는 GitHub Actions CI 가 담당.
 echo ""
-echo ">>> [5a/5] ArgoCD Application(ticketing) image tag 갱신"
+echo ">>> [5a/5] soldesk-k8s prod + dev values 의 image.tag 갱신 + commit + push"
 
-# 태그가 결정되지 않은 경우 (SKIP_BUILD=1이고 기존 태그도 없는 경우) 경고
-if [[ -z "${WAS_TAG}" || "${WAS_TAG}" == "seed-pending" ]]; then
-  echo "WARNING: WAS_TAG 미결정. image.was.tag 를 직접 지정하세요."
-  WAS_TAG="seed-pending"
+if [[ -z "${WAS_TAG}" || -z "${WORKER_TAG}" || "${WAS_TAG}" == "seed-pending" ]]; then
+  echo "WARNING: image.tag 미결정 — values 파일 갱신 건너뜀"
+else
+  K8S_DIR="${K8S_DIR:-$(cd "${SCRIPT_DIR}/../soldesk-k8s" 2>/dev/null && pwd || echo "")}"
+  if [[ -z "${K8S_DIR}" ]]; then
+    echo "ERROR: soldesk-k8s 디렉토리를 찾을 수 없습니다. K8S_DIR 환경 변수 지정."
+    exit 1
+  fi
+
+  VALUES_PROD="${K8S_DIR}/environments/prod/ticketing-values.yaml"
+  VALUES_DEV="${K8S_DIR}/environments/dev/ticketing-values.yaml"
+  echo "  was.tag    : ${WAS_TAG}"
+  echo "  worker.tag : ${WORKER_TAG}"
+  echo "  prod values: ${VALUES_PROD}"
+  echo "  dev values : ${VALUES_DEV}"
+
+  cd "${K8S_DIR}"
+  git pull --rebase --autostash
+
+  for vf in "${VALUES_PROD}" "${VALUES_DEV}"; do
+    [[ -f "$vf" ]] || { echo "  skip (없음): $vf"; continue; }
+    python3 - "$vf" "${WAS_TAG}" "${WORKER_TAG}" <<'PY'
+import sys, re
+path, was, worker = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f: text = f.read()
+text = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>{was}', text, count=1)
+text = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>{worker}', text, count=1)
+with open(path, 'w') as f: f.write(text)
+PY
+  done
+
+  if git diff --quiet "${VALUES_PROD}" "${VALUES_DEV}"; then
+    echo "  변경 없음 (이미 동일 tag)"
+  else
+    git add "${VALUES_PROD}" "${VALUES_DEV}"
+    git commit -m "chore(seed): bump prod+dev image tag to ${WAS_TAG}/${WORKER_TAG}"
+    git push origin HEAD
+    echo "  push 완료 — ArgoCD 가 자동 sync 할 것"
+  fi
 fi
-if [[ -z "${WORKER_TAG}" || "${WORKER_TAG}" == "seed-pending" ]]; then
-  echo "WARNING: WORKER_TAG 미결정. image.worker.tag 를 직접 지정하세요."
-  WORKER_TAG="seed-pending"
-fi
-
-echo "  was.tag    : ${WAS_TAG}"
-echo "  worker.tag : ${WORKER_TAG}"
-
-kubectl apply -f - <<EOF
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: ticketing
-  namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/lhk8080/soldesk-k8s.git
-    targetRevision: HEAD
-    path: charts/ticketing
-    helm:
-      valueFiles:
-        - ../../environments/prod/ticketing-values.yaml
-      parameters:
-        - name: image.was.repository
-          value: "${ECR_WAS_URL}"
-        - name: image.was.tag
-          value: "${WAS_TAG}"
-        - name: image.worker.repository
-          value: "${ECR_WORKER_URL}"
-        - name: image.worker.tag
-          value: "${WORKER_TAG}"
-        - name: serviceAccount.sqsAccessRoleArn
-          value: "${SQS_ACCESS_ROLE_ARN}"
-        - name: serviceAccount.dbBackupRoleArn
-          value: "${DB_BACKUP_ROLE_ARN}"
-        - name: config.sqsQueueUrl
-          value: "${SQS_QUEUE_URL}"
-        - name: backup.s3Bucket
-          value: "${ASSETS_BUCKET}"
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: ticketing
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
-EOF
 
 # ── 6. Frontend S3 sync + CloudFront invalidation ─────────────────────────
 if [[ "${SKIP_FRONTEND}" == "1" ]]; then

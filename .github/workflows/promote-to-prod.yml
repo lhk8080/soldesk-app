@@ -1,0 +1,66 @@
+name: Promote dev image to prod
+
+# main 으로 merge 되면 dev values.yaml 의 현재 태그를 prod values.yaml 로 복사한다.
+# 재빌드 없음. dev 에서 검증된 그 이미지 그대로 prod 로.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/promote-to-prod.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: promote-to-prod
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: soldesk-k8s 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: lhk8080/soldesk-k8s
+          token: ${{ secrets.K8S_REPO_TOKEN }}
+          path: soldesk-k8s
+
+      - name: dev → prod 태그 복사
+        working-directory: soldesk-k8s
+        run: |
+          DEV="environments/dev/ticketing-values.yaml"
+          PROD="environments/prod/ticketing-values.yaml"
+
+          python3 - "$DEV" "$PROD" <<'PY'
+          import sys, re
+          dev_path, prod_path = sys.argv[1], sys.argv[2]
+          with open(dev_path) as f: dev = f.read()
+          was = re.search(r'image:\s*\n  was:\s*\n    tag:\s*(\S+)', dev).group(1)
+          worker = re.search(r'  worker:\s*\n    tag:\s*(\S+)', dev).group(1)
+          print(f"dev was.tag    = {was}")
+          print(f"dev worker.tag = {worker}")
+
+          with open(prod_path) as f: prod = f.read()
+          prod = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>{was}', prod, count=1)
+          prod = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>{worker}', prod, count=1)
+          with open(prod_path, 'w') as f: f.write(prod)
+          PY
+
+          if git diff --quiet "$PROD"; then
+            echo "prod 가 이미 dev 와 동일 — 변경 없음"
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$PROD"
+          git commit -m "chore(prod): promote dev image tag (soldesk-app@${GITHUB_SHA:0:7})"
+
+          for i in 1 2 3 4 5; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((RANDOM % 5 + 2))
+          done
+          echo "push 5회 실패" >&2
+          exit 1

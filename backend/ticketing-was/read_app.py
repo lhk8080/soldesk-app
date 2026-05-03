@@ -225,4 +225,5 @@ def version():
     return {
         "version": os.getenv("IMAGE_TAG", "unknown"),
         "env": os.getenv("ENV", "unknown"),
+        "service": "ticketing-was",
     }

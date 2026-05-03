@@ -23,7 +23,7 @@ jobs:
     name: dev 이미지 Trivy 재스캔
     runs-on: ubuntu-latest
     steps:
-      - name: soldesk-k8s 체크아웃 (dev tag 조회)
+      - name: soldesk-k8s 코드 가져오기 (dev tag 조회)
         uses: actions/checkout@v4
         with:
           repository: lhk8080/soldesk-k8s

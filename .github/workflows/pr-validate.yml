@@ -62,6 +62,9 @@ jobs:
           VALUES=soldesk-k8s/environments/dev/ticketing-values.yaml
           WAS=$(python3 -c "import re;print(re.search(r'image:\s*\n  was:\s*\n    tag:\s*(\S+)', open('$VALUES').read()).group(1))")
           WORKER=$(python3 -c "import re;print(re.search(r'  worker:\s*\n    tag:\s*(\S+)', open('$VALUES').read()).group(1))")
+          # YAML 에 "" 또는 '' 로 감싸진 tag 값 정리 (build-backend.yml 이 quote 처리)
+          WAS="${WAS//\"/}"; WAS="${WAS//\'/}"
+          WORKER="${WORKER//\"/}"; WORKER="${WORKER//\'/}"
           echo "was=$WAS"       >> $GITHUB_OUTPUT
           echo "worker=$WORKER" >> $GITHUB_OUTPUT
 

@@ -482,8 +482,8 @@ else
 import sys, re
 path, was, worker = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path) as f: text = f.read()
-text = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>{was}', text, count=1)
-text = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>{worker}', text, count=1)
+text = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>"{was}"', text, count=1)
+text = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>"{worker}"', text, count=1)
 with open(path, 'w') as f: f.write(text)
 PY
   done

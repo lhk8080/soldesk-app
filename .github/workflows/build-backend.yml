@@ -164,9 +164,9 @@ jobs:
           path, tag, was_changed, worker_changed = sys.argv[1:]
           with open(path) as f: text = f.read()
           if was_changed == 'true':
-              text = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>{tag}', text, count=1)
+              text = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>"{tag}"', text, count=1)
           if worker_changed == 'true':
-              text = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>{tag}', text, count=1)
+              text = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>"{tag}"', text, count=1)
           with open(path, 'w') as f: f.write(text)
           PY
 

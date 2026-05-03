@@ -35,14 +35,14 @@ jobs:
           import sys, re
           dev_path, prod_path = sys.argv[1], sys.argv[2]
           with open(dev_path) as f: dev = f.read()
-          was = re.search(r'image:\s*\n  was:\s*\n    tag:\s*(\S+)', dev).group(1)
-          worker = re.search(r'  worker:\s*\n    tag:\s*(\S+)', dev).group(1)
+          was = re.search(r'image:\s*\n  was:\s*\n    tag:\s*(\S+)', dev).group(1).strip('"\'')
+          worker = re.search(r'  worker:\s*\n    tag:\s*(\S+)', dev).group(1).strip('"\'')
           print(f"dev was.tag    = {was}")
           print(f"dev worker.tag = {worker}")
 
           with open(prod_path) as f: prod = f.read()
-          prod = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>{was}', prod, count=1)
-          prod = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>{worker}', prod, count=1)
+          prod = re.sub(r'(image:\s*\n  was:\s*\n    tag:\s*).*', rf'\g<1>"{was}"', prod, count=1)
+          prod = re.sub(r'(  worker:\s*\n    tag:\s*).*', rf'\g<1>"{worker}"', prod, count=1)
           with open(prod_path, 'w') as f: f.write(prod)
           PY
 

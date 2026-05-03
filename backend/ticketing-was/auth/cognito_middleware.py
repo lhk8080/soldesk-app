@@ -27,6 +27,7 @@ PUBLIC_PATH_PREFIXES = (
     "/docs",
     "/openapi.json",
     "/api/read/health",
+    "/api/read/version",
     "/api/write/health",
     "/metrics",
     # 공개 조회 API (영화/극장/콘서트 목록 + 상세)
@@ -54,6 +55,7 @@ PUBLIC_EXACT_PATHS = {
     "/",
     "/health",
     "/api/read/health",
+    "/api/read/version",
     "/api/write/health",
     "/docs",
     "/openapi.json",

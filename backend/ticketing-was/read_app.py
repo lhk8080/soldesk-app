@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import random
 import time
 from contextlib import asynccontextmanager
@@ -217,3 +218,11 @@ def root_health():
 @app.get("/api/read/health")
 def health():
     return {"message": "read api ok"}
+
+
+@app.get("/api/read/version")
+def version():
+    return {
+        "version": os.getenv("IMAGE_TAG", "unknown"),
+        "env": os.getenv("ENV", "unknown"),
+    }

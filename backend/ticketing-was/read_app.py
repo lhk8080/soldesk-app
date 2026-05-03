@@ -225,5 +225,5 @@ def version():
     return {
         "version": os.getenv("IMAGE_TAG", "unknown"),
         "env": os.getenv("ENV", "unknown"),
-        "txt" : "솔데스크",
+        "txt" : "솔데스크 803 - 2조 시연",
     }

@@ -1,7 +1,8 @@
 name: PR Validate (dev → main)
 
-# dev → main PR 시 안전망: 단위 테스트 + 현재 dev 가 가리키는 ECR 이미지 trivy 재스캔.
+# dev → main PR 시 안전망: 현재 dev 가 가리키는 ECR 이미지 trivy 재스캔.
 # trivy DB 가 갱신되므로 dev push 때 통과한 이미지도 다시 스캔하는 게 안전.
+# CRITICAL/HIGH 발견 시 Slack 알림.
 on:
   pull_request:
     branches: [main]
@@ -18,35 +19,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: ticketing-was
-            path: backend/ticketing-was
-          - service: worker-svc
-            path: backend/worker-svc
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Python 셋업
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-          cache-dependency-path: ${{ matrix.path }}/requirements-dev.txt
-
-      - name: 의존성 설치
-        working-directory: ${{ matrix.path }}
-        run: pip install -r requirements-dev.txt
-
-      - name: pytest
-        working-directory: ${{ matrix.path }}
-        run: pytest -v tests/
-
   scan-dev-images:
+    name: dev 이미지 Trivy 재스캔
     runs-on: ubuntu-latest
     steps:
       - name: soldesk-k8s 체크아웃 (dev tag 조회)

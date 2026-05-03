@@ -130,6 +130,28 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           exit-code: '0'
+          format: 'json'
+          output: 'trivy-${{ matrix.service }}.json'
+
+      - name: Trivy 결과 Slack 알림 (취약점 있을 때만)
+        if: matrix.changed == 'true'
+        run: |
+          REPORT="trivy-${{ matrix.service }}.json"
+          CRIT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' "$REPORT")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' "$REPORT")
+          TOTAL=$((CRIT + HIGH))
+          echo "CRITICAL=$CRIT HIGH=$HIGH"
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "취약점 없음 — 알림 스킵"
+            exit 0
+          fi
+          WEBHOOK=$(aws ssm get-parameter \
+            --name /ticketing/prod/ARGOCD_SLACK_WEBHOOK \
+            --with-decryption --query Parameter.Value --output text)
+          MSG="[dev-build] *${{ matrix.service }}*:\`${{ env.SHORT_SHA }}\` — CRITICAL: ${CRIT}, HIGH: ${HIGH} (run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          curl -sS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg t "$MSG" '{text:$t}')" \
+            "$WEBHOOK"
 
       - name: ECR push
         if: matrix.changed == 'true'

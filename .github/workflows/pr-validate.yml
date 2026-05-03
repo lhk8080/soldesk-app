@@ -84,6 +84,8 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           exit-code: '0'
+          format: 'json'
+          output: 'trivy-was.json'
 
       - name: Trivy — worker-svc
         uses: aquasecurity/trivy-action@master
@@ -92,3 +94,30 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           exit-code: '0'
+          format: 'json'
+          output: 'trivy-worker.json'
+
+      - name: Trivy 결과 Slack 알림 (취약점 있을 때만)
+        run: |
+          notify() {
+            local svc="$1" tag="$2" report="$3"
+            local crit high total
+            crit=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' "$report")
+            high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' "$report")
+            total=$((crit + high))
+            echo "$svc CRITICAL=$crit HIGH=$high"
+            if [ "$total" -eq 0 ]; then
+              echo "$svc 취약점 없음 — 스킵"
+              return 0
+            fi
+            local msg="[pr-validate] *${svc}*:\`${tag}\` — CRITICAL: ${crit}, HIGH: ${high} (PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.html_url }})"
+            curl -sS -X POST -H 'Content-Type: application/json' \
+              --data "$(jq -nc --arg t "$msg" '{text:$t}')" \
+              "$WEBHOOK"
+          }
+          WEBHOOK=$(aws ssm get-parameter \
+            --name /ticketing/prod/ARGOCD_SLACK_WEBHOOK \
+            --with-decryption --query Parameter.Value --output text)
+          export WEBHOOK
+          notify ticketing-was "${{ steps.tags.outputs.was }}"    trivy-was.json
+          notify worker-svc    "${{ steps.tags.outputs.worker }}" trivy-worker.json

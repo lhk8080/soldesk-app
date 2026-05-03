@@ -18,7 +18,7 @@ jobs:
   promote:
     runs-on: ubuntu-latest
     steps:
-      - name: soldesk-k8s 체크아웃
+      - name: soldesk-k8s 코드 가져오기
         uses: actions/checkout@v4
         with:
           repository: lhk8080/soldesk-k8s

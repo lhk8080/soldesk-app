@@ -225,5 +225,4 @@ def version():
     return {
         "version": os.getenv("IMAGE_TAG", "unknown"),
         "env": os.getenv("ENV", "unknown"),
-        "text": "시연 테스트용 -1",
     }

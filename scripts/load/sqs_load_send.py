@@ -82,6 +82,13 @@ def parse_args() -> argparse.Namespace:
         metavar="SEC",
         help="큐 깊이 폴링 간격(초), 기본 2",
     )
+    p.add_argument(
+        "--pre-delay-sec",
+        type=float,
+        default=0.0,
+        metavar="SEC",
+        help="전송 시작 전 대기 시간(초). 데모 영상 녹화 시작 후 카운트다운용",
+    )
     return p.parse_args()
 
 
@@ -146,6 +153,16 @@ def main() -> None:
         args.groups = 1
 
     client = boto3.client("sqs", region_name=args.region)
+
+    # 데모 녹화용 카운트다운: --pre-delay-sec 만큼 stderr 로 매초 카운트
+    if args.pre_delay_sec and args.pre_delay_sec > 0:
+        remaining = int(args.pre_delay_sec)
+        print(f"전송까지 {remaining}초 대기...", file=sys.stderr, flush=True)
+        while remaining > 0:
+            print(f"  T-{remaining}s", file=sys.stderr, flush=True)
+            time.sleep(1)
+            remaining -= 1
+        print("부하 시작!", file=sys.stderr, flush=True)
     groups = max(1, int(args.groups))
     sent = 0
     errors = 0
@@ -200,6 +217,22 @@ def main() -> None:
     prep_sec = round(t_tx_start - t_script0, 3)
     total_sec = round(t_final - t_script0, 3)
 
+    def _fmt_dur(sec):
+        if sec is None:
+            return None
+        try:
+            s = float(sec)
+        except (TypeError, ValueError):
+            return None
+        if s < 1:
+            return f"{s * 1000:.0f}ms"
+        if s < 60:
+            return f"{s:.2f}s"
+        m, r = divmod(s, 60)
+        return f"{int(m)}m {r:.1f}s"
+
+    drain_sec = qinfo.get("큐_소진_대기_초")
+
     print(
         json.dumps(
             {
@@ -214,10 +247,25 @@ def main() -> None:
                 "초당_메시지": round(rate, 1),
                 "FIFO_그룹_수": groups,
                 "테스트후_잔여좌석": None,
+                # ── 사람이 읽기 좋은 단위 표기 ──
+                "_단위": {
+                    "준비": _fmt_dur(prep_sec),
+                    "전송": _fmt_dur(tx_sec),
+                    "큐_소진_대기": _fmt_dur(drain_sec),
+                    "전체": _fmt_dur(total_sec),
+                    "처리량": f"{rate:.1f} msg/s",
+                },
             },
             indent=2,
             ensure_ascii=False,
         )
+    )
+    print(
+        f"\n=== 요약 ===\n"
+        f"전송   : {sent}건 ({_fmt_dur(tx_sec)}) → {rate:.1f} msg/s\n"
+        f"큐 소진: {_fmt_dur(drain_sec)}\n"
+        f"전체   : {_fmt_dur(total_sec)}",
+        file=sys.stderr,
     )
     if errors:
         sys.exit(1)

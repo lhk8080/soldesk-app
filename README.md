@@ -1,39 +1,9 @@
-# soldesk-app
+## 3-repo 구조
 
-## scripts/ 구조
+| 레포지토리명 | 책임 범위 | 링크 |
+|---|---|---|
+| soldesk-infra | • 테라폼 코드 전반<br>• AWS 리소스 + IAM<br>• 클러스터 운용에 필요한 애드온 (helm provider) | [github](https://github.com/lhk8080/soldesk-infra) |
+| soldesk-k8s | • ArgoCD에 의해 동기화되는 대상<br>• monitoring, service app | [github](https://github.com/lhk8080/soldesk-k8s) |
+| **soldesk-app** (이 repo) | • 애플리케이션 소스 코드<br>• 이미지 빌드 & 레지스트리 푸시 지점 | — |
 
-| 디렉토리 | 용도 |
-|---|---|
-| `scripts/load/` | SQS·HTTP 부하 생성 (boto3, locust) |
-| `scripts/observe/` | 라이브 뷰, CSV 폴링, 큐 소진 대기 |
-| `scripts/control/` | KEDA·worker-svc 오토스케일 ON/OFF |
-| `scripts/db/` | DB 디버깅 조회 |
-
-## 부하테스트 스크립트 환경 세팅
-
-`scripts/` 안의 SQS 부하 스크립트(boto3 사용)와 locust를 돌리려면 venv에 패키지를 깔아야 합니다.
-
-### 최초 1회
-
-```bash
-sudo apt install python3.12-venv     # 우분투에 venv 모듈이 없으면
-cd /home/lhk64/soldesk-app
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r scripts/requirements.txt
-```
-
-### 이후 새 셸 열 때마다
-
-```bash
-source /home/lhk64/soldesk-app/.venv/bin/activate
-```
-
-프롬프트 앞에 `(.venv)`가 붙으면 활성화 OK. 빠져나올 땐 `deactivate`.
-
-### 패키지 추가했을 때
-
-```bash
-pip install <새 패키지>
-pip freeze > scripts/requirements.txt   # 목록 갱신
-```
+## 디렉토리 구조
